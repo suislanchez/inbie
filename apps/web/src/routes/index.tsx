@@ -29,7 +29,9 @@ import {
 	Users,
 	X,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+
+import { useTheme } from "@/components/theme-provider";
 
 export const Route = createFileRoute("/")({
 	component: HomeComponent,
@@ -69,6 +71,170 @@ interface Email {
 		sentiment: string;
 	};
 }
+
+interface Rule {
+	id: number
+	name: string
+	description: string
+	conditions: {
+		type: "sender" | "subject" | "content" | "category"
+		operator: "contains" | "equals" | "startsWith" | "endsWith" | "matches"
+		value: string
+	}[]
+	actions: {
+		type: "label" | "archive" | "move" | "forward" | "delete" | "markRead"
+		value: string
+	}[]
+	priority: number
+	isEnabled: boolean
+	createdAt: string
+	lastModified: string
+	lastTriggered: string | null
+	triggerCount: number
+}
+
+interface RuleTestResult {
+	ruleId: number
+	ruleName: string
+	emailId: number
+	matched: boolean
+	matchedConditions: {
+		condition: string
+		matched: boolean
+		value: string
+	}[]
+	actions: {
+		action: "label" | "archive" | "move" | "forward" | "delete" | "markRead"
+		value: string
+	}[]
+	timestamp: string
+}
+
+interface AIAction {
+	id: number
+	type: "rule_applied" | "label_added" | "email_archived" | "email_moved" | "email_deleted" | "draft_created"
+	emailId: number
+	emailSubject: string
+	emailSender: string
+	ruleId?: number
+	ruleName?: string
+	details: {
+		action: string
+		value: string
+		confidence?: number
+	}[]
+	timestamp: string
+}
+
+// Add dummy data
+const DUMMY_RULES: Rule[] = [
+	{
+		id: 1,
+		name: "Newsletter Handler",
+		description: "Automatically archive newsletters and label them appropriately",
+		conditions: [
+			{
+				type: "subject",
+				operator: "contains",
+				value: "newsletter"
+			},
+			{
+				type: "category",
+				operator: "equals",
+				value: "marketing"
+			}
+		],
+		actions: [
+			{
+				type: "label",
+				value: "Newsletter"
+			},
+			{
+				type: "archive",
+				value: "true"
+			}
+		],
+		priority: 1,
+		isEnabled: true,
+		createdAt: "2024-03-15T10:00:00Z",
+		lastModified: "2024-03-15T10:00:00Z",
+		lastTriggered: "2024-03-20T15:30:00Z",
+		triggerCount: 45
+	},
+	{
+		id: 2,
+		name: "Meeting Requests",
+		description: "Label and organize calendar invites",
+		conditions: [
+			{
+				type: "subject",
+				operator: "contains",
+				value: "meeting"
+			},
+			{
+				type: "content",
+				operator: "contains",
+				value: "calendar"
+			}
+		],
+		actions: [
+			{
+				type: "label",
+				value: "Calendar"
+			},
+			{
+				type: "move",
+				value: "meetings"
+			}
+		],
+		priority: 2,
+		isEnabled: true,
+		createdAt: "2024-03-14T09:00:00Z",
+		lastModified: "2024-03-16T11:20:00Z",
+		lastTriggered: "2024-03-20T14:15:00Z",
+		triggerCount: 23
+	}
+]
+
+const DUMMY_AI_ACTIONS: AIAction[] = [
+	{
+		id: 1,
+		type: "rule_applied",
+		emailId: 123,
+		emailSubject: "Weekly Newsletter - Tech Updates",
+		emailSender: "tech@example.com",
+		ruleId: 1,
+		ruleName: "Newsletter Handler",
+		details: [
+			{
+				action: "label",
+				value: "Newsletter",
+				confidence: 0.95
+			},
+			{
+				action: "archive",
+				value: "true",
+				confidence: 0.98
+			}
+		],
+		timestamp: "2024-03-20T15:30:00Z"
+	},
+	{
+		id: 2,
+		type: "draft_created",
+		emailId: 124,
+		emailSubject: "Meeting Request: Project Review",
+		emailSender: "colleague@company.com",
+		details: [
+			{
+				action: "draft_response",
+				value: "I'll be available for the meeting. Looking forward to discussing the project updates.",
+				confidence: 0.92
+			}
+		],
+		timestamp: "2024-03-20T14:15:00Z"
+	}
+]
 
 // Update DUMMY_EMAILS to use the Email interface
 const DUMMY_EMAILS: Record<string, Email[]> = {
@@ -414,59 +580,6 @@ UC Berkeley`,
 				responseTime: "3 hours",
 				priority: "High",
 				category: "Academic",
-				sentiment: "Professional",
-			},
-		},
-		{
-			id: 6,
-			sender: "Meta University Recruiting",
-			time: "1 hour ago",
-			subject: "Meta SWE Internship Application Status",
-			preview:
-				"Your application for the Software Engineering Internship has been reviewed...",
-			content: `Dear Luis,
-
-Thank you for your interest in the Software Engineering Internship at Meta. We've reviewed your application and would like to invite you to complete our technical assessment.
-
-Next Steps:
-1. Complete the coding assessment (90 minutes)
-2. Submit your availability for technical interviews
-3. Update your resume if needed
-
-The assessment will cover:
-- Data structures and algorithms
-- System design fundamentals
-- Problem-solving skills
-
-Please complete the assessment within 7 days.
-
-Best regards,
-Meta University Recruiting Team`,
-			badges: ["High Priority", "Interview"],
-			hasAIDraft: true,
-			aiDraft: `Dear Meta University Recruiting Team,
-
-Thank you for reviewing my application and for inviting me to complete the technical assessment. I'm excited about the opportunity to join Meta's engineering team.
-
-I can confirm that I will complete the coding assessment within the 7-day timeframe. I'm particularly interested in the system design and problem-solving components, as they align well with my experience in distributed systems and algorithm development.
-
-For the technical interviews, I'm available during the following times next week:
-- Monday: 10 AM - 4 PM PST
-- Tuesday: 1 PM - 6 PM PST
-- Wednesday: 9 AM - 3 PM PST
-- Thursday: 11 AM - 5 PM PST
-- Friday: 10 AM - 2 PM PST
-
-I've attached an updated version of my resume that includes my most recent projects and achievements.
-
-I look forward to the assessment and the opportunity to demonstrate my technical skills.
-
-Best regards,
-Luis Sanchez`,
-			analytics: {
-				responseTime: "1 hour",
-				priority: "High",
-				category: "Career",
 				sentiment: "Professional",
 			},
 		},
@@ -2258,15 +2371,91 @@ function AnalyticsComponent() {
 }
 
 function HomeComponent() {
+	const { theme } = useTheme()
 	const [activeFolder, setActiveFolder] = useState("all");
 	const [activeTool, setActiveTool] = useState("reply-zero");
 	const [showNewEmailModal, setShowNewEmailModal] = useState(false);
+	const [showAIConfigModal, setShowAIConfigModal] = useState(false);
+	const [showRulesModal, setShowRulesModal] = useState(false);
+	const [showTestModal, setShowTestModal] = useState(false);
+	const [showHistoryModal, setShowHistoryModal] = useState(false);
+	const [isAIConfigModalVisible, setIsAIConfigModalVisible] = useState(false);
+	const [isRulesModalVisible, setIsRulesModalVisible] = useState(false);
+	const [isTestModalVisible, setIsTestModalVisible] = useState(false);
+	const [isHistoryModalVisible, setIsHistoryModalVisible] = useState(false);
+
+	// Add keyboard shortcut handler for all AI tools
+	useEffect(() => {
+		function handleKeyDown(event: KeyboardEvent) {
+			if (!event.metaKey && !event.ctrlKey) return // Only handle Command/Ctrl combinations
+			
+			event.preventDefault() // Prevent browser's default search behavior
+			
+			switch (event.key.toLowerCase()) {
+				case 'k': // Knowledge
+					if (!showAIConfigModal) handleOpenAIConfigModal()
+					break
+				case 'r': // Rules
+					if (!showRulesModal) handleOpenRulesModal()
+					break
+				case 'e': // Test (changed from 't' to 'e')
+					if (!showTestModal) handleOpenTestModal()
+					break
+				case 'h': // History
+					if (!showHistoryModal) handleOpenHistoryModal()
+					break
+			}
+		}
+
+		window.addEventListener('keydown', handleKeyDown)
+		return () => window.removeEventListener('keydown', handleKeyDown)
+	}, [showAIConfigModal, showRulesModal, showTestModal, showHistoryModal])
+
+	// Modal handlers
+	const handleOpenRulesModal = () => {
+		setShowRulesModal(true)
+		requestAnimationFrame(() => setIsRulesModalVisible(true))
+	}
+
+	const handleCloseRulesModal = () => {
+		setIsRulesModalVisible(false)
+		setTimeout(() => setShowRulesModal(false), ANIMATION_DURATION)
+	}
+
+	const handleOpenTestModal = () => {
+		setShowTestModal(true)
+		requestAnimationFrame(() => setIsTestModalVisible(true))
+	}
+
+	const handleCloseTestModal = () => {
+		setIsTestModalVisible(false)
+		setTimeout(() => setShowTestModal(false), ANIMATION_DURATION)
+	}
+
+	const handleOpenHistoryModal = () => {
+		setShowHistoryModal(true)
+		requestAnimationFrame(() => setIsHistoryModalVisible(true))
+	}
+
+	const handleCloseHistoryModal = () => {
+		setIsHistoryModalVisible(false)
+		setTimeout(() => setShowHistoryModal(false), ANIMATION_DURATION)
+	}
+
+	const [aiConfigData, setAIConfigData] = useState({
+		instructions: `* Label all newsletters as 'Newsletter' and archive them.
+* Label all marketing emails as 'Marketing' and archive them.
+* Label all calendar emails as 'Calendar'.
+* Label all receipts as 'Receipts'.
+* Label all notifications as 'Notifications'.`,
+		additionalRules: "",
+		exceptions: ""
+	});
 	const [blockedEmails, setBlockedEmails] = useState(5);
 	const [subscriptions, setSubscriptions] = useState(12);
 	const [pendingReplies, setPendingReplies] = useState(3);
 	const [aiDrafts, setAiDrafts] = useState(2);
 	const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
-	const [showAIConfig, setShowAIConfig] = useState(false);
 	const [showNewFolderModal, setShowNewFolderModal] = useState(false);
 	const [sortBy, setSortBy] = useState<SortOption>("date");
 	const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
@@ -2292,6 +2481,46 @@ function HomeComponent() {
 		},
 	]);
 	const [showAddAccountModal, setShowAddAccountModal] = useState(false);
+
+	const [newFolderData, setNewFolderData] = useState({
+		name: "",
+		description: "",
+		aiBehavior: "",
+		labels: [] as string[],
+		newLabel: ""
+	})
+
+	const existingLabels = [
+		"Urgent",
+		"Important",
+		"Follow-up",
+		"Meeting",
+		"Project",
+		"Personal",
+		"Client",
+		"Team",
+		"Review",
+		"Action Required"
+	]
+
+	const handleLabelToggle = (label: string) => {
+		setNewFolderData(prev => ({
+			...prev,
+			labels: prev.labels.includes(label)
+				? prev.labels.filter(l => l !== label)
+				: [...prev.labels, label]
+		}))
+	}
+
+	const handleAddNewLabel = () => {
+		if (newFolderData.newLabel.trim() && !newFolderData.labels.includes(newFolderData.newLabel.trim())) {
+			setNewFolderData(prev => ({
+				...prev,
+				labels: [...prev.labels, prev.newLabel.trim()],
+				newLabel: ""
+			}))
+		}
+	}
 
 	const handleFolderChange = (folder: string) => {
 		setActiveFolder(folder);
@@ -2388,6 +2617,115 @@ function HomeComponent() {
 		}
 	};
 
+	const [modalPosition, setModalPosition] = useState({ x: 0, y: 0 })
+	const [isModalVisible, setIsModalVisible] = useState(false)
+	const plusButtonRef = useRef<HTMLButtonElement>(null)
+	const ANIMATION_DURATION = 400 // ms
+
+	const handleOpenModal = () => {
+		if (plusButtonRef.current) {
+			const rect = plusButtonRef.current.getBoundingClientRect()
+			const centerX = rect.left + rect.width / 2
+			const centerY = rect.top + rect.height / 2
+			setModalPosition({ x: centerX, y: centerY })
+			setShowNewFolderModal(true)
+			// Trigger animation after state update
+			requestAnimationFrame(() => {
+				setIsModalVisible(true)
+			})
+		}
+	}
+
+	const handleCloseModal = () => {
+		setIsModalVisible(false)
+		// Wait for animation to complete before hiding modal
+		setTimeout(() => {
+			setShowNewFolderModal(false)
+			setNewFolderData({ name: "", description: "", aiBehavior: "", labels: [], newLabel: "" })
+		}, ANIMATION_DURATION)
+	}
+
+	const handleOpenAIConfigModal = () => {
+		setShowAIConfigModal(true)
+		requestAnimationFrame(() => {
+			setIsAIConfigModalVisible(true)
+		})
+	}
+
+	const handleCloseAIConfigModal = () => {
+		setIsAIConfigModalVisible(false)
+		setTimeout(() => {
+			setShowAIConfigModal(false)
+			setAIConfigData({
+				instructions: `* Label all newsletters as 'Newsletter' and archive them.
+* Label all marketing emails as 'Marketing' and archive them.
+* Label all calendar emails as 'Calendar'.
+* Label all receipts as 'Receipts'.
+* Label all notifications as 'Notifications'.`,
+				additionalRules: "",
+				exceptions: ""
+			})
+		}, ANIMATION_DURATION)
+	}
+
+	const [selectedRule, setSelectedRule] = useState<Rule | null>(null)
+	const [selectedEmails, setSelectedEmails] = useState<number[]>([])
+	const [testResults, setTestResults] = useState<RuleTestResult[]>([])
+	const [rules, setRules] = useState<Rule[]>(DUMMY_RULES)
+	const [aiActions, setAiActions] = useState<AIAction[]>(DUMMY_AI_ACTIONS)
+
+	// Add handlers for rules and testing
+	const handleCreateRule = () => {
+		const newRule: Rule = {
+			id: rules.length + 1,
+			name: "New Rule",
+			description: "",
+			conditions: [],
+			actions: [],
+			priority: rules.length + 1,
+			isEnabled: true,
+			createdAt: new Date().toISOString(),
+			lastModified: new Date().toISOString(),
+			lastTriggered: null,
+			triggerCount: 0
+		}
+		setRules(prev => [...prev, newRule])
+		setSelectedRule(newRule)
+	}
+
+	const handleTestRule = (rule: Rule, emailIds: number[]) => {
+		// Simulate rule testing
+		const results: RuleTestResult[] = emailIds
+			.map(emailId => {
+				const email = getAllEmails().find(e => e.id === emailId)
+				if (!email) return undefined
+
+				const matchedConditions = rule.conditions.map(condition => ({
+					condition: `${condition.type} ${condition.operator} "${condition.value}"`,
+					matched: Math.random() > 0.3, // Simulate matching
+					value: condition.value
+				}))
+
+				const matched = matchedConditions.every(mc => mc.matched)
+
+				return {
+					ruleId: rule.id,
+					ruleName: rule.name,
+					emailId,
+					matched,
+					matchedConditions,
+					actions: rule.actions.map(action => ({
+						action: action.type,
+						value: action.value
+					})),
+					timestamp: new Date().toISOString()
+				} satisfies RuleTestResult
+			})
+			.filter((result): result is RuleTestResult => result !== undefined)
+
+		setTestResults(results)
+	}
+
 	return (
 		<div className="flex h-screen bg-background">
 			{/* Sidebar with tools */}
@@ -2395,20 +2733,20 @@ function HomeComponent() {
 				{/* Account Section */}
 				<div className="border-b p-4">
 					<div className="mb-4 flex items-center gap-3">
-						<div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-primary/10">
+						<div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg">
 							<img
-								src="/logo.png"
+								src={theme === "dark" ? "/logo_dark.png" : "/logo_light.png"}
 								alt="InboxFlux Logo"
-								className="h-8 w-8 object-contain"
-								width={32}
-								height={32}
+								className="h-12 w-12 object-contain"
+								width={48}
+								height={48}
 							/>
 						</div>
 						<div className="flex flex-col">
-							<h1 className="font-semibold text-lg text-primary tracking-tight">
+							<h1 className="font-semibold text-xl text-primary tracking-tight">
 								InboxFlux
 							</h1>
-							<p className="text-muted-foreground text-xs">
+							<p className="text-muted-foreground text-sm">
 								AI Email Assistant
 							</p>
 						</div>
@@ -2527,39 +2865,52 @@ function HomeComponent() {
 									{subscriptions}
 								</span>
 							</button>
+						
 						</nav>
 					</div>
 
 					<div className="mb-8">
-						<button
-							onClick={() => setShowAIConfig(!showAIConfig)}
-							className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
-						>
-							AI Configuration
-							<span className="ml-auto">{showAIConfig ? "▼" : "▶"}</span>
-						</button>
-						{showAIConfig && (
-							<div className="mt-2 space-y-2 rounded-md border p-2">
-								<button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent">
-									Prompts
-								</button>
-								<button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent">
-									Rules
-								</button>
-								<button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent">
-									Test
-								</button>
-								<button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent">
-									Knowledge
-								</button>
-								<button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent">
-									History
-								</button>
-								<button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent">
-									Examples
-								</button>
-							</div>
-						)}
+						<h3 className="mb-2 font-medium text-muted-foreground text-sm">
+							AI Tools
+						</h3>
+						<nav className="space-y-1">
+							<button
+								onClick={handleOpenAIConfigModal}
+								className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+							>
+								Knowledge Base
+								<kbd className="ml-auto rounded bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground">
+									⌘K
+								</kbd>
+							</button>
+							<button
+								onClick={handleOpenRulesModal}
+								className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+							>
+								Rules
+								<kbd className="ml-auto rounded bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground">
+									⌘R
+								</kbd>
+							</button>
+							<button
+								onClick={handleOpenTestModal}
+								className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+							>
+								Test Rules
+								<kbd className="ml-auto rounded bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground">
+									⌘E
+								</kbd>
+							</button>
+							<button
+								onClick={handleOpenHistoryModal}
+								className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+							>
+								History
+								<kbd className="ml-auto rounded bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground">
+									⌘H
+								</kbd>
+							</button>
+						</nav>
 					</div>
 
 					<div className="mt-8">
@@ -2659,8 +3010,9 @@ function HomeComponent() {
 							</button>
 						))}
 						<button
-							onClick={() => setShowNewFolderModal(true)}
-							className="ml-2 rounded-full p-1 hover:bg-accent"
+							ref={plusButtonRef}
+							onClick={handleOpenModal}
+							className="ml-2 rounded-full p-1 hover:bg-accent transition-colors duration-200"
 						>
 							<span className="text-lg">+</span>
 						</button>
@@ -3005,49 +3357,170 @@ function HomeComponent() {
 
 				{/* New Folder Modal */}
 				{showNewFolderModal && (
-					<div className="fixed inset-0 flex items-center justify-center bg-black/50">
-						<div className="w-96 rounded-lg bg-background p-4">
-							<h2 className="mb-4 font-semibold text-lg">Create New Folder</h2>
-							<div className="space-y-4">
+					<div 
+						className="fixed inset-0 flex items-center justify-center transition-all duration-[400ms] ease-out"
+						style={{ 
+							opacity: isModalVisible ? 1 : 0,
+							pointerEvents: isModalVisible ? 'auto' : 'none',
+							backgroundColor: isModalVisible ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0)',
+							backdropFilter: isModalVisible ? 'blur(4px)' : 'blur(0px)',
+						}}
+					>
+						<div 
+							className="w-[480px] rounded-lg bg-background p-6 shadow-xl transition-all duration-[400ms] ease-out"
+							style={{
+								transform: isModalVisible 
+									? 'translate(-50%, -50%) scale(1)' 
+									: `translate(calc(${modalPosition.x}px - 50%), calc(${modalPosition.y}px - 50%)) scale(0.3)`,
+								opacity: isModalVisible ? 1 : 0,
+								transformOrigin: 'center',
+								position: 'absolute',
+								left: '50%',
+								top: '50%',
+							}}
+						>
+							<div className="mb-6 flex items-center justify-between">
+								<h2 className="font-semibold text-lg">Create New Folder</h2>
+								<button
+									onClick={handleCloseModal}
+									className="rounded-md p-1 hover:bg-accent transition-colors duration-200"
+								>
+									<span className="text-lg">×</span>
+								</button>
+							</div>
+							<div 
+								className="space-y-4 transition-all duration-[400ms] ease-out"
+								style={{
+									opacity: isModalVisible ? 1 : 0,
+									transform: isModalVisible ? 'translateY(0)' : 'translateY(10px)',
+								}}
+							>
 								<div>
 									<label
 										htmlFor="folder-name"
-										className="mb-1 block font-medium text-sm"
+										className="mb-1.5 block font-medium text-sm"
 									>
 										Folder Name
 									</label>
 									<input
 										id="folder-name"
 										type="text"
-										className="w-full rounded-md border px-3 py-2"
+										value={newFolderData.name}
+										onChange={(e) => setNewFolderData(prev => ({ ...prev, name: e.target.value }))}
+										className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
 										placeholder="Enter folder name"
 									/>
 								</div>
 								<div>
 									<label
-										htmlFor="folder-type"
-										className="mb-1 block font-medium text-sm"
+										htmlFor="folder-description"
+										className="mb-1.5 block font-medium text-sm"
 									>
-										Folder Type
+										Description
 									</label>
-									<select
-										id="folder-type"
-										className="w-full rounded-md border px-3 py-2"
-									>
-										<option value="ai-generated">AI Generated</option>
-										<option value="followups">Follow-ups</option>
-										<option value="meetings">Meetings</option>
-										<option value="custom">Custom</option>
-									</select>
+									<textarea
+										id="folder-description"
+										value={newFolderData.description}
+										onChange={(e) => setNewFolderData(prev => ({ ...prev, description: e.target.value }))}
+										className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[80px] resize-none"
+										placeholder="Describe what AI should put in this category"
+									/>
 								</div>
-								<div className="flex justify-end gap-2">
+								<div>
+									<label
+										htmlFor="ai-behavior"
+										className="mb-1.5 block font-medium text-sm"
+									>
+										AI Behavior
+									</label>
+									<textarea
+										id="ai-behavior"
+										value={newFolderData.aiBehavior}
+										onChange={(e) => setNewFolderData(prev => ({ ...prev, aiBehavior: e.target.value }))}
+										className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[100px] resize-none"
+										placeholder="Describe how AI should handle emails sent to this folder (e.g., 'Automatically draft responses for meeting requests', 'Flag urgent items for immediate attention', 'Summarize long threads')"
+									/>
+								</div>
+								<div>
+									<label className="mb-1.5 block font-medium text-sm">
+										Labels
+									</label>
+									<div className="mb-3">
+										<span className="mb-2 block text-xs text-muted-foreground">Existing Labels</span>
+										<div className="flex flex-wrap gap-2">
+											{existingLabels.map((label) => (
+												<button
+													key={label}
+													onClick={() => handleLabelToggle(label)}
+													className={`group flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+														newFolderData.labels.includes(label)
+															? "bg-primary text-primary-foreground hover:bg-primary/90"
+															: "bg-accent text-accent-foreground hover:bg-accent/80"
+													}`}
+												>
+													{label}
+													{newFolderData.labels.includes(label) && (
+														<span className="opacity-0 group-hover:opacity-100">×</span>
+													)}
+												</button>
+											))}
+										</div>
+									</div>
+									<div className="mb-3">
+										<span className="mb-2 block text-xs text-muted-foreground">Custom Labels</span>
+										<div className="flex flex-wrap gap-2">
+											{newFolderData.labels
+												.filter(label => !existingLabels.includes(label))
+												.map((label) => (
+													<button
+														key={label}
+														onClick={() => handleLabelToggle(label)}
+														className="group flex items-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+													>
+														{label}
+														<span className="opacity-0 group-hover:opacity-100">×</span>
+													</button>
+												))}
+										</div>
+									</div>
+									<div className="flex gap-2">
+										<input
+											type="text"
+											value={newFolderData.newLabel}
+											onChange={(e) => setNewFolderData(prev => ({ ...prev, newLabel: e.target.value }))}
+											onKeyDown={(e) => e.key === 'Enter' && handleAddNewLabel()}
+											className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+											placeholder="Add custom label..."
+										/>
+										<button
+											onClick={handleAddNewLabel}
+											className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium hover:bg-accent/80"
+										>
+											Add
+										</button>
+									</div>
+								</div>
+								<div className="flex justify-end gap-2 pt-2">
 									<button
-										onClick={() => setShowNewFolderModal(false)}
-										className="rounded-md border px-4 py-2 text-sm hover:bg-accent"
+										onClick={handleCloseModal}
+										className="rounded-md border px-4 py-2 text-sm hover:bg-accent transition-colors duration-200"
 									>
 										Cancel
 									</button>
-									<button className="rounded-md bg-primary px-4 py-2 text-primary-foreground text-sm">
+									<button 
+										onClick={() => {
+											setCustomFolders(prev => [...prev, {
+												id: prev.length + 1,
+												name: newFolderData.name,
+												type: "custom",
+												description: newFolderData.description,
+												aiBehavior: newFolderData.aiBehavior,
+												labels: newFolderData.labels
+											}])
+											handleCloseModal()
+										}}
+										className="rounded-md bg-primary px-4 py-2 text-primary-foreground text-sm hover:bg-primary/90 transition-colors duration-200"
+									>
 										Create Folder
 									</button>
 								</div>
@@ -3112,6 +3585,693 @@ function HomeComponent() {
 									<button className="rounded-md bg-primary px-4 py-2 text-primary-foreground text-sm">
 										Connect Account
 									</button>
+								</div>
+							</div>
+						</div>
+					</div>
+				)}
+
+				{/* AI Configuration Modal */}
+				{showAIConfigModal && (
+					<div 
+						className="fixed inset-0 flex items-center justify-center transition-all duration-[400ms] ease-out"
+						style={{ 
+							opacity: isAIConfigModalVisible ? 1 : 0,
+							pointerEvents: isAIConfigModalVisible ? 'auto' : 'none',
+							backgroundColor: isAIConfigModalVisible ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0)',
+							backdropFilter: isAIConfigModalVisible ? 'blur(4px)' : 'blur(0px)',
+						}}
+					>
+						<div 
+							className="w-[640px] rounded-lg bg-background p-6 shadow-xl transition-all duration-[400ms] ease-out"
+							style={{
+								transform: isAIConfigModalVisible 
+									? 'translate(-50%, -50%) scale(1)' 
+									: 'translate(-50%, -50%) scale(0.95)',
+								opacity: isAIConfigModalVisible ? 1 : 0,
+								transformOrigin: 'center',
+								position: 'absolute',
+								left: '50%',
+								top: '50%',
+							}}
+						>
+							<div className="mb-6 flex items-center justify-between">
+								<h2 className="font-semibold text-lg">Knowledge Base</h2>
+								<button
+									onClick={handleCloseAIConfigModal}
+									className="rounded-md p-1 hover:bg-accent transition-colors duration-200"
+								>
+									<span className="text-lg">×</span>
+								</button>
+							</div>
+							<div 
+								className="space-y-4 transition-all duration-[400ms] ease-out"
+								style={{
+									opacity: isAIConfigModalVisible ? 1 : 0,
+									transform: isAIConfigModalVisible ? 'translateY(0)' : 'translateY(10px)',
+								}}
+							>
+								<div>
+									<label
+										htmlFor="ai-instructions"
+										className="mb-1.5 block font-medium text-sm"
+									>
+										Default Instructions
+									</label>
+									<textarea
+										id="ai-instructions"
+										value={aiConfigData.instructions}
+										onChange={(e) => setAIConfigData(prev => ({ ...prev, instructions: e.target.value }))}
+										className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[200px] resize-none font-mono"
+										placeholder="Enter default instructions for AI email handling..."
+									/>
+								</div>
+								<div>
+									<label
+										htmlFor="additional-rules"
+										className="mb-1.5 block font-medium text-sm"
+									>
+										Additional Rules
+									</label>
+									<textarea
+										id="additional-rules"
+										value={aiConfigData.additionalRules}
+										onChange={(e) => setAIConfigData(prev => ({ ...prev, additionalRules: e.target.value }))}
+										className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[100px] resize-none"
+										placeholder="Add any additional rules or preferences for AI email handling..."
+									/>
+								</div>
+								<div>
+									<label
+										htmlFor="exceptions"
+										className="mb-1.5 block font-medium text-sm"
+									>
+										Exceptions
+									</label>
+									<textarea
+										id="exceptions"
+										value={aiConfigData.exceptions}
+										onChange={(e) => setAIConfigData(prev => ({ ...prev, exceptions: e.target.value }))}
+										className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[100px] resize-none"
+										placeholder="Specify any exceptions to the rules above..."
+									/>
+								</div>
+								<div className="flex justify-end gap-2 pt-2">
+									<button
+										onClick={handleCloseAIConfigModal}
+										className="rounded-md border px-4 py-2 text-sm hover:bg-accent transition-colors duration-200"
+									>
+										Cancel
+									</button>
+									<button 
+										onClick={() => {
+											// TODO: Save AI configuration
+											handleCloseAIConfigModal()
+										}}
+										className="rounded-md bg-primary px-4 py-2 text-primary-foreground text-sm hover:bg-primary/90 transition-colors duration-200"
+									>
+										Save Configuration
+									</button>
+								</div>
+							</div>
+						</div>
+					</div>
+				)}
+
+				{/* Rules Modal */}
+				{showRulesModal && (
+					<div 
+						className="fixed inset-0 flex items-center justify-center transition-all duration-[400ms] ease-out"
+						style={{ 
+							opacity: isRulesModalVisible ? 1 : 0,
+							pointerEvents: isRulesModalVisible ? 'auto' : 'none',
+							backgroundColor: isRulesModalVisible ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0)',
+							backdropFilter: isRulesModalVisible ? 'blur(4px)' : 'blur(0px)',
+						}}
+					>
+						<div 
+							className="w-[800px] rounded-lg bg-background p-6 shadow-xl transition-all duration-[400ms] ease-out"
+							style={{
+								transform: isRulesModalVisible 
+									? 'translate(-50%, -50%) scale(1)' 
+									: 'translate(-50%, -50%) scale(0.95)',
+								opacity: isRulesModalVisible ? 1 : 0,
+								transformOrigin: 'center',
+								position: 'absolute',
+								left: '50%',
+								top: '50%',
+							}}
+						>
+							<div className="mb-6 flex items-center justify-between">
+								<h2 className="font-semibold text-lg">Rules</h2>
+								<div className="flex items-center gap-2">
+									<button
+										onClick={handleCreateRule}
+										className="rounded-md bg-primary px-3 py-1.5 text-primary-foreground text-sm hover:bg-primary/90"
+									>
+											Create Rule
+									</button>
+									<button
+										onClick={handleCloseRulesModal}
+										className="rounded-md p-1 hover:bg-accent transition-colors duration-200"
+									>
+										<span className="text-lg">×</span>
+									</button>
+								</div>
+							</div>
+							<div className="space-y-4">
+								<div className="grid grid-cols-2 gap-4">
+									<div className="space-y-2">
+										<h3 className="font-medium text-sm">Active Rules</h3>
+										<div className="space-y-2 max-h-[400px] overflow-y-auto">
+											{rules.map(rule => (
+												<div
+													key={rule.id}
+													className={`w-full rounded-lg border p-3 ${
+														selectedRule?.id === rule.id
+															? 'border-primary bg-primary/5'
+															: ''
+													}`}
+												>
+													<div className="flex items-center justify-between">
+														<button
+															onClick={() => setSelectedRule(rule)}
+															className="flex-1 text-left hover:bg-accent/50 rounded-md px-2 py-1 -mx-2"
+														>
+															<span className="font-medium">{rule.name}</span>
+															<span className="ml-2 text-xs text-muted-foreground">
+																{rule.triggerCount} triggers
+															</span>
+														</button>
+														<button
+															onClick={() => {
+																setSelectedRule(rule)
+																// TODO: Implement edit rule functionality
+															}}
+															className="rounded-md p-1 hover:bg-accent"
+														>
+															<Settings className="h-4 w-4" />
+														</button>
+													</div>
+													<p className="mt-1 text-sm text-muted-foreground">
+														{rule.description}
+													</p>
+													<div className="mt-2 flex flex-wrap gap-1">
+														{rule.actions.map((action, i) => (
+															<span
+																key={i}
+																className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary"
+															>
+																{action.type}: {action.value}
+															</span>
+														))}
+													</div>
+												</div>
+											))}
+										</div>
+									</div>
+									{selectedRule ? (
+										<div className="space-y-4">
+											<div>
+												<label className="mb-1.5 block font-medium text-sm">
+													Rule Name
+												</label>
+												<input
+													type="text"
+													value={selectedRule.name}
+													onChange={(e) => setRules(prev => 
+														prev.map(r => r.id === selectedRule.id 
+															? { ...r, name: e.target.value }
+															: r
+														)
+													)}
+													className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+												/>
+											</div>
+											<div>
+												<label className="mb-1.5 block font-medium text-sm">
+													Description
+												</label>
+												<textarea
+													value={selectedRule.description}
+													onChange={(e) => setRules(prev => 
+														prev.map(r => r.id === selectedRule.id 
+															? { ...r, description: e.target.value }
+															: r
+														)
+													)}
+													className="w-full rounded-md border bg-background px-3 py-2 text-sm min-h-[80px] resize-none"
+												/>
+											</div>
+											<div>
+												<label className="mb-1.5 block font-medium text-sm">
+													Conditions
+												</label>
+												<div className="space-y-2">
+													{selectedRule.conditions.map((condition, i) => (
+														<div key={i} className="flex gap-2">
+															<select
+																value={condition.type}
+																onChange={(e) => setRules(prev => 
+																	prev.map(r => r.id === selectedRule.id 
+																		? { ...r, conditions: r.conditions.map((c, j) => 
+																			j === i ? { ...c, type: e.target.value as any } : c
+																		)}
+																		: r
+																	)
+																)}
+																className="rounded-md border bg-background px-2 py-1 text-sm"
+															>
+																<option value="sender">Sender</option>
+																<option value="subject">Subject</option>
+																<option value="content">Content</option>
+																<option value="category">Category</option>
+															</select>
+															<select
+																value={condition.operator}
+																onChange={(e) => setRules(prev => 
+																	prev.map(r => r.id === selectedRule.id 
+																		? { ...r, conditions: r.conditions.map((c, j) => 
+																			j === i ? { ...c, operator: e.target.value as any } : c
+																		)}
+																		: r
+																	)
+																)}
+																className="rounded-md border bg-background px-2 py-1 text-sm"
+															>
+																<option value="contains">Contains</option>
+																<option value="equals">Equals</option>
+																<option value="startsWith">Starts with</option>
+																<option value="endsWith">Ends with</option>
+																<option value="matches">Matches</option>
+															</select>
+															<input
+																type="text"
+																value={condition.value}
+																onChange={(e) => setRules(prev => 
+																	prev.map(r => r.id === selectedRule.id 
+																		? { ...r, conditions: r.conditions.map((c, j) => 
+																			j === i ? { ...c, value: e.target.value } : c
+																		)}
+																		: r
+																	)
+																)}
+																className="flex-1 rounded-md border bg-background px-2 py-1 text-sm"
+																placeholder="Value"
+															/>
+															<button
+																onClick={() => setRules(prev => 
+																	prev.map(r => r.id === selectedRule.id 
+																		? { ...r, conditions: r.conditions.filter((_, j) => j !== i) }
+																		: r
+																	)
+																)}
+																className="rounded-md p-1 text-destructive hover:bg-destructive/10"
+															>
+																×
+															</button>
+														</div>
+													))}
+													<button
+														onClick={() => setRules(prev => 
+															prev.map(r => r.id === selectedRule.id 
+																? { ...r, conditions: [...r.conditions, {
+																	type: "subject",
+																	operator: "contains",
+																	value: ""
+																}]}
+																: r
+															)
+														)}
+														className="text-sm text-primary hover:underline"
+													>
+														+ Add Condition
+													</button>
+												</div>
+											</div>
+											<div>
+												<label className="mb-1.5 block font-medium text-sm">
+													Actions
+												</label>
+												<div className="space-y-2">
+													{selectedRule.actions.map((action, i) => (
+														<div key={i} className="flex gap-2">
+															<select
+																value={action.type}
+																onChange={(e) => setRules(prev => 
+																	prev.map(r => r.id === selectedRule.id 
+																		? { ...r, actions: r.actions.map((a, j) => 
+																			j === i ? { ...a, type: e.target.value as any } : a
+																		)}
+																		: r
+																	)
+																)}
+																className="rounded-md border bg-background px-2 py-1 text-sm"
+															>
+																<option value="label">Label</option>
+																<option value="archive">Archive</option>
+																<option value="move">Move to</option>
+																<option value="forward">Forward to</option>
+																<option value="delete">Delete</option>
+																<option value="markRead">Mark as read</option>
+															</select>
+															<input
+																type="text"
+																value={action.value}
+																onChange={(e) => setRules(prev => 
+																	prev.map(r => r.id === selectedRule.id 
+																		? { ...r, actions: r.actions.map((a, j) => 
+																			j === i ? { ...a, value: e.target.value } : a
+																		)}
+																		: r
+																	)
+																)}
+																className="flex-1 rounded-md border bg-background px-2 py-1 text-sm"
+																placeholder="Value"
+															/>
+															<button
+																onClick={() => setRules(prev => 
+																	prev.map(r => r.id === selectedRule.id 
+																		? { ...r, actions: r.actions.filter((_, j) => j !== i) }
+																		: r
+																	)
+																)}
+																className="rounded-md p-1 text-destructive hover:bg-destructive/10"
+															>
+																×
+															</button>
+														</div>
+													))}
+													<button
+														onClick={() => setRules(prev => 
+															prev.map(r => r.id === selectedRule.id 
+																? { ...r, actions: [...r.actions, {
+																	type: "label",
+																	value: ""
+																}]}
+																: r
+															)
+														)}
+														className="text-sm text-primary hover:underline"
+													>
+														+ Add Action
+													</button>
+												</div>
+											</div>
+										</div>
+									) : (
+										<div className="space-y-4">
+											<div>
+												<label className="mb-1.5 block font-medium text-sm">
+													Create Rule from Prompt
+												</label>
+												<textarea
+													className="w-full rounded-md border bg-background px-3 py-2 text-sm min-h-[200px] resize-none"
+													placeholder="Describe the rule you want to create. For example: 'Automatically archive all newsletters and label them as Newsletter'"
+													onChange={(e) => {
+														const prompt = e.target.value
+														if (prompt) {
+															// Here you would typically call an API to generate the rule
+															// For now, we'll just create a basic rule
+															const newRule: Rule = {
+																id: rules.length + 1,
+																name: "Rule from Prompt",
+																description: prompt,
+																conditions: [],
+																actions: [],
+																priority: rules.length + 1,
+																isEnabled: true,
+																createdAt: new Date().toISOString(),
+																lastModified: new Date().toISOString(),
+																lastTriggered: null,
+																triggerCount: 0
+															}
+															setRules(prev => [...prev, newRule])
+															setSelectedRule(newRule)
+														}
+													}}
+												/>
+											</div>
+											<div className="flex justify-end">
+												<button
+													onClick={handleCreateRule}
+													className="rounded-md bg-primary px-4 py-2 text-primary-foreground text-sm hover:bg-primary/90"
+												>
+													Create Empty Rule
+												</button>
+											</div>
+										</div>
+									)}
+								</div>
+							</div>
+						</div>
+					</div>
+				)}
+
+				{/* Test Rules Modal */}
+				{showTestModal && (
+					<div 
+						className="fixed inset-0 flex items-center justify-center transition-all duration-[400ms] ease-out"
+						style={{ 
+							opacity: isTestModalVisible ? 1 : 0,
+							pointerEvents: isTestModalVisible ? 'auto' : 'none',
+							backgroundColor: isTestModalVisible ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0)',
+							backdropFilter: isTestModalVisible ? 'blur(4px)' : 'blur(0px)',
+						}}
+					>
+						<div 
+							className="w-[800px] rounded-lg bg-background p-6 shadow-xl transition-all duration-[400ms] ease-out"
+							style={{
+								transform: isTestModalVisible 
+									? 'translate(-50%, -50%) scale(1)' 
+									: 'translate(-50%, -50%) scale(0.95)',
+								opacity: isTestModalVisible ? 1 : 0,
+								transformOrigin: 'center',
+								position: 'absolute',
+								left: '50%',
+								top: '50%',
+							}}
+						>
+							<div className="mb-6 flex items-center justify-between">
+								<h2 className="font-semibold text-lg">Test Rules</h2>
+								<button
+									onClick={handleCloseTestModal}
+									className="rounded-md p-1 hover:bg-accent transition-colors duration-200"
+								>
+									<span className="text-lg">×</span>
+								</button>
+							</div>
+							<div className="space-y-4">
+								<div className="grid grid-cols-2 gap-4">
+									<div className="space-y-4">
+										<div>
+											<label className="mb-1.5 block font-medium text-sm">
+												Select Rule
+											</label>
+											<select
+												value={selectedRule?.id || ""}
+												onChange={(e) => setSelectedRule(rules.find(r => r.id === Number(e.target.value)) || null)}
+												className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+											>
+												<option value="">Select a rule to test</option>
+												{rules.map(rule => (
+													<option key={rule.id} value={rule.id}>
+														{rule.name}
+													</option>
+												))}
+											</select>
+										</div>
+										<div>
+											<label className="mb-1.5 block font-medium text-sm">
+												Select Emails
+											</label>
+											<div className="max-h-[300px] space-y-2 overflow-y-auto">
+												{getAllEmails().map(email => (
+													<label
+														key={email.id}
+														className="flex items-center gap-2 rounded-lg border p-2 hover:bg-accent/50"
+													>
+														<input
+															type="checkbox"
+															checked={selectedEmails.includes(email.id)}
+															onChange={(e) => setSelectedEmails(prev => 
+																e.target.checked
+																	? [...prev, email.id]
+																	: prev.filter(id => id !== email.id)
+															)}
+															className="rounded border-input"
+														/>
+														<div className="flex-1 min-w-0">
+															<div className="truncate font-medium">
+																{email.subject}
+															</div>
+															<div className="truncate text-sm text-muted-foreground">
+																{email.sender}
+															</div>
+														</div>
+													</label>
+												))}
+											</div>
+										</div>
+										<button
+											onClick={() => selectedRule && handleTestRule(selectedRule, selectedEmails)}
+											disabled={!selectedRule || selectedEmails.length === 0}
+											className="w-full rounded-md bg-primary px-4 py-2 text-primary-foreground text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+										>
+											Test Rule
+										</button>
+									</div>
+									<div className="space-y-4">
+										<h3 className="font-medium text-sm">Test Results</h3>
+										<div className="space-y-4 max-h-[400px] overflow-y-auto">
+											{testResults.map((result, i) => {
+												const email = getAllEmails().find(e => e.id === result.emailId)
+												if (!email) return null
+
+												return (
+													<div
+														key={i}
+														className={`rounded-lg border p-3 ${
+															result.matched ? 'border-green-500/50 bg-green-500/5' : 'border-red-500/50 bg-red-500/5'
+														}`}
+													>
+														<div className="flex items-center justify-between">
+															<span className="font-medium">{email.subject}</span>
+															<span className={`text-xs ${
+																result.matched ? 'text-green-500' : 'text-red-500'
+															}`}>
+																{result.matched ? 'Matched' : 'Not Matched'}
+															</span>
+														</div>
+														<div className="mt-2 space-y-2">
+															<div className="text-sm">
+																<span className="font-medium">Conditions:</span>
+																<ul className="mt-1 space-y-1">
+																	{result.matchedConditions.map((condition, j) => (
+																		<li
+																			key={j}
+																			className={`flex items-center gap-2 ${
+																				condition.matched ? 'text-green-500' : 'text-red-500'
+																			}`}
+																		>
+																			<span>{condition.matched ? '✓' : '×'}</span>
+																			<span>{condition.condition}</span>
+																		</li>
+																	))}
+																</ul>
+															</div>
+															{result.matched && (
+																<div className="text-sm">
+																	<span className="font-medium">Actions:</span>
+																	<ul className="mt-1 space-y-1">
+																		{result.actions.map((action, j) => (
+																			<li key={j} className="flex items-center gap-2">
+																				<span>•</span>
+																				<span>{action.action}: {action.value}</span>
+																			</li>
+																		))}
+																	</ul>
+																</div>
+															)}
+														</div>
+													</div>
+												)
+											})}
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				)}
+
+				{/* History Modal */}
+				{showHistoryModal && (
+					<div 
+						className="fixed inset-0 flex items-center justify-center transition-all duration-[400ms] ease-out"
+						style={{ 
+							opacity: isHistoryModalVisible ? 1 : 0,
+							pointerEvents: isHistoryModalVisible ? 'auto' : 'none',
+							backgroundColor: isHistoryModalVisible ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0)',
+							backdropFilter: isHistoryModalVisible ? 'blur(4px)' : 'blur(0px)',
+						}}
+					>
+						<div 
+							className="w-[800px] rounded-lg bg-background p-6 shadow-xl transition-all duration-[400ms] ease-out"
+							style={{
+								transform: isHistoryModalVisible 
+									? 'translate(-50%, -50%) scale(1)' 
+									: 'translate(-50%, -50%) scale(0.95)',
+								opacity: isHistoryModalVisible ? 1 : 0,
+								transformOrigin: 'center',
+								position: 'absolute',
+								left: '50%',
+								top: '50%',
+							}}
+						>
+							<div className="mb-6 flex items-center justify-between">
+								<h2 className="font-semibold text-lg">AI Action History</h2>
+								<button
+									onClick={handleCloseHistoryModal}
+									className="rounded-md p-1 hover:bg-accent transition-colors duration-200"
+								>
+									<span className="text-lg">×</span>
+								</button>
+							</div>
+							<div className="space-y-4">
+								<div className="space-y-4 max-h-[500px] overflow-y-auto">
+									{aiActions.map(action => (
+										<div
+											key={action.id}
+											className="rounded-lg border p-4"
+										>
+											<div className="flex items-center justify-between">
+												<div>
+													<span className="font-medium">{action.emailSubject}</span>
+													<span className="ml-2 text-sm text-muted-foreground">
+														from {action.emailSender}
+													</span>
+												</div>
+												<span className="text-xs text-muted-foreground">
+													{new Date(action.timestamp).toLocaleString()}
+												</span>
+											</div>
+											<div className="mt-2 flex items-center gap-2">
+												<span className={`rounded-full px-2 py-0.5 text-xs ${
+													action.type === 'rule_applied'
+														? 'bg-blue-500/10 text-blue-500'
+														: action.type === 'draft_created'
+														? 'bg-green-500/10 text-green-500'
+														: 'bg-purple-500/10 text-purple-500'
+												}`}>
+													{action.type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+												</span>
+												{action.ruleName && (
+													<span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+														Rule: {action.ruleName}
+													</span>
+												)}
+											</div>
+											<div className="mt-2 space-y-1">
+												{action.details.map((detail, i) => (
+													<div
+														key={i}
+														className="flex items-center gap-2 text-sm"
+													>
+														<span className="text-muted-foreground">
+															{detail.action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
+														</span>
+														<span>{detail.value}</span>
+														{detail.confidence && (
+															<span className="text-xs text-muted-foreground">
+																({Math.round(detail.confidence * 100)}% confidence)
+															</span>
+														)}
+													</div>
+												))}
+											</div>
+										</div>
+									))}
 								</div>
 							</div>
 						</div>

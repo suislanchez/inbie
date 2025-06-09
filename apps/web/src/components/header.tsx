@@ -2,8 +2,10 @@ import { Link } from "@tanstack/react-router";
 
 import UserMenu from "@/components/user-menu";
 import { ModeToggle } from "./mode-toggle";
+import { useTheme } from "@/components/theme-provider";
 
 export default function Header() {
+	const { theme } = useTheme()
 	const links = [
 		{ to: "/", label: "Home" },
 		{ to: "/dashboard", label: "Dashboard" },
