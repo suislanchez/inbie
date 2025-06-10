@@ -13,6 +13,7 @@
 import { Route as rootRoute } from './routes/__root'
 import { Route as TodosImport } from './routes/todos'
 import { Route as LoginImport } from './routes/login'
+import { Route as GmailImport } from './routes/gmail'
 import { Route as DashboardImport } from './routes/dashboard'
 import { Route as AiImport } from './routes/ai'
 import { Route as IndexImport } from './routes/index'
@@ -28,6 +29,12 @@ const TodosRoute = TodosImport.update({
 const LoginRoute = LoginImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const GmailRoute = GmailImport.update({
+  id: '/gmail',
+  path: '/gmail',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -74,6 +81,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardImport
       parentRoute: typeof rootRoute
     }
+    '/gmail': {
+      id: '/gmail'
+      path: '/gmail'
+      fullPath: '/gmail'
+      preLoaderRoute: typeof GmailImport
+      parentRoute: typeof rootRoute
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -97,6 +111,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/ai': typeof AiRoute
   '/dashboard': typeof DashboardRoute
+  '/gmail': typeof GmailRoute
   '/login': typeof LoginRoute
   '/todos': typeof TodosRoute
 }
@@ -105,6 +120,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ai': typeof AiRoute
   '/dashboard': typeof DashboardRoute
+  '/gmail': typeof GmailRoute
   '/login': typeof LoginRoute
   '/todos': typeof TodosRoute
 }
@@ -114,16 +130,17 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/ai': typeof AiRoute
   '/dashboard': typeof DashboardRoute
+  '/gmail': typeof GmailRoute
   '/login': typeof LoginRoute
   '/todos': typeof TodosRoute
 }
 
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/ai' | '/dashboard' | '/login' | '/todos'
+  fullPaths: '/' | '/ai' | '/dashboard' | '/gmail' | '/login' | '/todos'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/ai' | '/dashboard' | '/login' | '/todos'
-  id: '__root__' | '/' | '/ai' | '/dashboard' | '/login' | '/todos'
+  to: '/' | '/ai' | '/dashboard' | '/gmail' | '/login' | '/todos'
+  id: '__root__' | '/' | '/ai' | '/dashboard' | '/gmail' | '/login' | '/todos'
   fileRoutesById: FileRoutesById
 }
 
@@ -131,6 +148,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AiRoute: typeof AiRoute
   DashboardRoute: typeof DashboardRoute
+  GmailRoute: typeof GmailRoute
   LoginRoute: typeof LoginRoute
   TodosRoute: typeof TodosRoute
 }
@@ -139,6 +157,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AiRoute: AiRoute,
   DashboardRoute: DashboardRoute,
+  GmailRoute: GmailRoute,
   LoginRoute: LoginRoute,
   TodosRoute: TodosRoute,
 }
@@ -156,6 +175,7 @@ export const routeTree = rootRoute
         "/",
         "/ai",
         "/dashboard",
+        "/gmail",
         "/login",
         "/todos"
       ]
@@ -168,6 +188,9 @@ export const routeTree = rootRoute
     },
     "/dashboard": {
       "filePath": "dashboard.tsx"
+    },
+    "/gmail": {
+      "filePath": "gmail.tsx"
     },
     "/login": {
       "filePath": "login.tsx"

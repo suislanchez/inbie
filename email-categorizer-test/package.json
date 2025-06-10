@@ -1,0 +1,20 @@
+{
+  "name": "email-categorizer-test",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "start": "bun run src/index.ts",
+    "manual": "bun run src/manual-test.ts"
+  },
+  "dependencies": {
+    "openai": "^5.1.1",
+    "zod": "^3.25.56",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "typescript": "^5.4.5"
+  }
+} 

@@ -10,6 +10,13 @@ import { auth } from "./lib/auth";
 import { createContext } from "./lib/context";
 import { appRouter } from "./routers/index";
 
+// Set default environment variables if not provided
+process.env.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "680235656943-s6evnaejjbkppohtl764v3dtqg56p9uq.apps.googleusercontent.com";
+process.env.GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "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";
+process.env.GOOGLE_ENCRYPT_SECRET = process.env.GOOGLE_ENCRYPT_SECRET || "ec6543a05ae5546d7883733cf6061a7a9b73f87b6344d60d19ea9221069fd921";
+process.env.GOOGLE_REDIRECT_URI = "http://localhost:3001/api/auth/callback/google";
+process.env.CORS_ORIGIN = process.env.CORS_ORIGIN || "http://localhost:3001";
+
 const app = new Hono();
 
 app.use(logger());

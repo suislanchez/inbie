@@ -15,18 +15,20 @@
 		"db:migrate": "drizzle-kit migrate"
 	},
 	"dependencies": {
-		"dotenv": "^16.4.7",
-		"zod": "^3.25.16",
-		"@trpc/server": "^11.0.0",
-		"@trpc/client": "^11.0.0",
-		"@hono/trpc-server": "^0.3.4",
-		"hono": "^4.7.6",
-		"drizzle-orm": "^0.38.4",
-		"@libsql/client": "^0.14.0",
-		"ai": "^4.3.16",
 		"@ai-sdk/google": "^1.2.3",
+		"@better-auth/expo": "^1.2.8",
+		"@hono/trpc-server": "^0.3.4",
+		"@libsql/client": "^0.14.0",
+		"@trpc/client": "^11.0.0",
+		"@trpc/server": "^11.0.0",
+		"ai": "^4.3.16",
 		"better-auth": "^1.2.8",
-		"@better-auth/expo": "^1.2.8"
+		"dotenv": "^16.4.7",
+		"drizzle-orm": "^0.38.4",
+		"google-auth-library": "^9.15.1",
+		"googleapis": "^150.0.1",
+		"hono": "^4.7.6",
+		"zod": "^3.25.16"
 	},
 	"devDependencies": {
 		"tsc-alias": "^1.8.11",

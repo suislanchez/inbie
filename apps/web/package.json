@@ -12,7 +12,9 @@
 		"generate-pwa-assets": "pwa-assets-generator",
 		"tauri": "tauri",
 		"desktop:dev": "tauri dev",
-		"desktop:build": "tauri build"
+		"desktop:build": "tauri build",
+		"test": "vitest",
+		"test:coverage": "vitest run --coverage"
 	},
 	"devDependencies": {
 		"@tanstack/react-query-devtools": "^5.80.5",
@@ -42,7 +44,7 @@
 		"@tanstack/react-form": "^1.0.5",
 		"@tanstack/react-query": "^5.80.5",
 		"@tanstack/react-router": "^1.114.25",
-		"@trpc/client": "^11.0.0",
+		"@trpc/client": "^11.3.1",
 		"@trpc/server": "^11.0.0",
 		"@trpc/tanstack-react-query": "^11.0.0",
 		"ai": "^4.3.16",
