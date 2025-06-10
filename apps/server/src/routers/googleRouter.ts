@@ -42,6 +42,13 @@ export const googleRouter = router({
         // Get user info
         const userInfo = await getUserInfo(tokens.access_token)
         
+        console.log("Tokens received:", {
+          access_token: tokens.access_token ? `${tokens.access_token.substring(0, 10)}...` : undefined,
+          refresh_token: tokens.refresh_token ? `${tokens.refresh_token.substring(0, 10)}...` : undefined,
+          expiry_date: tokens.expiry_date
+        })
+        console.log("User info received:", userInfo)
+        
         return {
           tokens,
           user: userInfo
@@ -63,12 +70,28 @@ export const googleRouter = router({
       maxResults: z.number().optional()
     }))
     .query(async ({ input }) => {
+      console.log("getRecentEmails called with:", {
+        accessToken: input.accessToken ? `${input.accessToken.substring(0, 10)}...` : undefined,
+        refreshToken: input.refreshToken ? `${input.refreshToken.substring(0, 10)}...` : undefined,
+        maxResults: input.maxResults
+      })
+      
       try {
         const emails = await getRecentEmails(
           input.accessToken,
           input.refreshToken,
           input.maxResults
         )
+        
+        console.log(`Retrieved ${emails.length} emails`)
+        if (emails.length > 0) {
+          console.log("First email:", {
+            id: emails[0].id,
+            subject: emails[0].subject,
+            from: emails[0].from
+          })
+        }
+        
         return { emails }
       } catch (error) {
         console.error("Error fetching emails:", error)

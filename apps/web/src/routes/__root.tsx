@@ -2,6 +2,7 @@ import Header from "@/components/header";
 import Loader from "@/components/loader";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { DebugOverlay } from "@/components/debug-overlay";
 import type { trpc } from "@/utils/trpc";
 import type { QueryClient } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
@@ -54,6 +55,7 @@ function RootComponent() {
 					{isFetching ? <Loader /> : <Outlet />}
 				</div>
 				<Toaster richColors />
+				<DebugOverlay />
 			</ThemeProvider>
 			<TanStackRouterDevtools position="bottom-left" />
 			<ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />

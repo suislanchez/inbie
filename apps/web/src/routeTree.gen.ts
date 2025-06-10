@@ -11,20 +11,13 @@
 // Import Routes
 
 import { Route as rootRoute } from './routes/__root'
-import { Route as TodosImport } from './routes/todos'
 import { Route as LoginImport } from './routes/login'
 import { Route as GmailImport } from './routes/gmail'
 import { Route as DashboardImport } from './routes/dashboard'
-import { Route as AiImport } from './routes/ai'
+import { Route as CallbackImport } from './routes/callback'
 import { Route as IndexImport } from './routes/index'
 
 // Create/Update Routes
-
-const TodosRoute = TodosImport.update({
-  id: '/todos',
-  path: '/todos',
-  getParentRoute: () => rootRoute,
-} as any)
 
 const LoginRoute = LoginImport.update({
   id: '/login',
@@ -44,9 +37,9 @@ const DashboardRoute = DashboardImport.update({
   getParentRoute: () => rootRoute,
 } as any)
 
-const AiRoute = AiImport.update({
-  id: '/ai',
-  path: '/ai',
+const CallbackRoute = CallbackImport.update({
+  id: '/callback',
+  path: '/callback',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -67,11 +60,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexImport
       parentRoute: typeof rootRoute
     }
-    '/ai': {
-      id: '/ai'
-      path: '/ai'
-      fullPath: '/ai'
-      preLoaderRoute: typeof AiImport
+    '/callback': {
+      id: '/callback'
+      path: '/callback'
+      fullPath: '/callback'
+      preLoaderRoute: typeof CallbackImport
       parentRoute: typeof rootRoute
     }
     '/dashboard': {
@@ -95,13 +88,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginImport
       parentRoute: typeof rootRoute
     }
-    '/todos': {
-      id: '/todos'
-      path: '/todos'
-      fullPath: '/todos'
-      preLoaderRoute: typeof TodosImport
-      parentRoute: typeof rootRoute
-    }
   }
 }
 
@@ -109,57 +95,52 @@ declare module '@tanstack/react-router' {
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/ai': typeof AiRoute
+  '/callback': typeof CallbackRoute
   '/dashboard': typeof DashboardRoute
   '/gmail': typeof GmailRoute
   '/login': typeof LoginRoute
-  '/todos': typeof TodosRoute
 }
 
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/ai': typeof AiRoute
+  '/callback': typeof CallbackRoute
   '/dashboard': typeof DashboardRoute
   '/gmail': typeof GmailRoute
   '/login': typeof LoginRoute
-  '/todos': typeof TodosRoute
 }
 
 export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
-  '/ai': typeof AiRoute
+  '/callback': typeof CallbackRoute
   '/dashboard': typeof DashboardRoute
   '/gmail': typeof GmailRoute
   '/login': typeof LoginRoute
-  '/todos': typeof TodosRoute
 }
 
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/ai' | '/dashboard' | '/gmail' | '/login' | '/todos'
+  fullPaths: '/' | '/callback' | '/dashboard' | '/gmail' | '/login'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/ai' | '/dashboard' | '/gmail' | '/login' | '/todos'
-  id: '__root__' | '/' | '/ai' | '/dashboard' | '/gmail' | '/login' | '/todos'
+  to: '/' | '/callback' | '/dashboard' | '/gmail' | '/login'
+  id: '__root__' | '/' | '/callback' | '/dashboard' | '/gmail' | '/login'
   fileRoutesById: FileRoutesById
 }
 
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AiRoute: typeof AiRoute
+  CallbackRoute: typeof CallbackRoute
   DashboardRoute: typeof DashboardRoute
   GmailRoute: typeof GmailRoute
   LoginRoute: typeof LoginRoute
-  TodosRoute: typeof TodosRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AiRoute: AiRoute,
+  CallbackRoute: CallbackRoute,
   DashboardRoute: DashboardRoute,
   GmailRoute: GmailRoute,
   LoginRoute: LoginRoute,
-  TodosRoute: TodosRoute,
 }
 
 export const routeTree = rootRoute
@@ -173,18 +154,17 @@ export const routeTree = rootRoute
       "filePath": "__root.tsx",
       "children": [
         "/",
-        "/ai",
+        "/callback",
         "/dashboard",
         "/gmail",
-        "/login",
-        "/todos"
+        "/login"
       ]
     },
     "/": {
       "filePath": "index.tsx"
     },
-    "/ai": {
-      "filePath": "ai.tsx"
+    "/callback": {
+      "filePath": "callback.tsx"
     },
     "/dashboard": {
       "filePath": "dashboard.tsx"
@@ -194,9 +174,6 @@ export const routeTree = rootRoute
     },
     "/login": {
       "filePath": "login.tsx"
-    },
-    "/todos": {
-      "filePath": "todos.tsx"
     }
   }
 }

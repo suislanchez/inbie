@@ -32,6 +32,7 @@ import {
 import { useState, useRef, useEffect } from "react";
 
 import { useTheme } from "@/components/theme-provider";
+import { GoogleAuth } from "@/components/google-auth";
 
 export const Route = createFileRoute("/")({
 	component: HomeComponent,
@@ -2924,6 +2925,9 @@ function HomeComponent() {
 							<button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent">
 								Settings
 							</button>
+							<div className="p-2">
+								<GoogleAuth />
+							</div>
 						</nav>
 					</div>
 

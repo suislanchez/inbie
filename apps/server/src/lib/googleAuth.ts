@@ -4,8 +4,9 @@ import { google, gmail_v1, Auth } from "googleapis"
 // Google OAuth configuration
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "680235656943-s6evnaejjbkppohtl764v3dtqg56p9uq.apps.googleusercontent.com"
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "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"
-// Update the redirect URI to match what's configured in Google Cloud Console
-const REDIRECT_URI = "http://localhost:3001/api/auth/google/callback"
+// Updated redirect URI to match exactly what's configured in Google Cloud Console
+const REDIRECT_URI = "http://localhost:3001"
+
 // Define required scopes
 const SCOPES = [
   "https://www.googleapis.com/auth/userinfo.email",
@@ -62,50 +63,102 @@ export async function getUserInfo(accessToken: string) {
 
 // Get recent emails
 export async function getRecentEmails(accessToken: string, refreshToken: string, maxResults = 10) {
-  const oAuth2Client = createOAuthClient()
-  oAuth2Client.setCredentials({ 
-    access_token: accessToken,
-    refresh_token: refreshToken
-  })
-  
-  const auth = new Auth.OAuth2Client({
-    clientId: GOOGLE_CLIENT_ID,
-    clientSecret: GOOGLE_CLIENT_SECRET,
-    redirectUri: REDIRECT_URI
-  })
-  auth.setCredentials({ 
-    access_token: accessToken,
-    refresh_token: refreshToken
-  })
-  
-  const gmail = google.gmail("v1")
-  gmail.context._options = { auth }
+  console.log("Starting email fetch process...")
   
   try {
+    const oAuth2Client = createOAuthClient()
+    oAuth2Client.setCredentials({ 
+      access_token: accessToken,
+      refresh_token: refreshToken
+    })
+    
+    console.log("OAuth client created and credentials set")
+    
+    const auth = new Auth.OAuth2Client({
+      clientId: GOOGLE_CLIENT_ID,
+      clientSecret: GOOGLE_CLIENT_SECRET,
+      redirectUri: REDIRECT_URI
+    })
+    auth.setCredentials({ 
+      access_token: accessToken,
+      refresh_token: refreshToken
+    })
+    
+    console.log("Auth client created and credentials set")
+    
+    const gmail = google.gmail("v1")
+    gmail.context._options = { auth }
+    
+    console.log("Gmail API client initialized")
+    
     // Get message list
+    console.log("Fetching message list...")
     const response = await gmail.users.messages.list({
       userId: "me",
       maxResults,
     })
     
+    console.log(`Messages list response status: ${response.status}`)
+    console.log(`Number of messages retrieved: ${response.data.messages?.length || 0}`)
+    
     const messageIds = response.data.messages || []
     
+    if (messageIds.length === 0) {
+      console.log("No messages found in the user's inbox")
+      return []
+    }
+    
     // Get full message details for each email
+    console.log("Fetching details for each message...")
     const emails = await Promise.all(
-      messageIds.map(async (message) => {
-        const email = await gmail.users.messages.get({
-          userId: "me",
-          id: message.id as string,
-          format: "full",
-        })
-        
-        return processEmail(email.data)
+      messageIds.map(async (message, index) => {
+        try {
+          console.log(`Fetching details for message ${index + 1}/${messageIds.length} (ID: ${message.id})`)
+          const email = await gmail.users.messages.get({
+            userId: "me",
+            id: message.id as string,
+            format: "full",
+          })
+          
+          console.log(`Successfully fetched details for message ID: ${message.id}`)
+          return processEmail(email.data)
+        } catch (error: any) {
+          console.error(`Error fetching details for message ID ${message.id}:`, error.message)
+          // Return partial data instead of failing the entire batch
+          return {
+            id: message.id,
+            threadId: message.threadId,
+            error: error.message,
+            errorDetails: error
+          }
+        }
       })
     )
     
+    console.log(`Successfully processed ${emails.length} emails`)
     return emails
-  } catch (error) {
-    console.error("Error fetching emails:", error)
+  } catch (error: any) {
+    console.error("Error in getRecentEmails:", error)
+    console.error("Error details:", {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      response: error.response ? {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data
+      } : 'No response data'
+    })
+    
+    // Check for specific error types
+    if (error.code === 401 || (error.response && error.response.status === 401)) {
+      console.error("Authentication error: Token might be expired or invalid")
+    } else if (error.code === 403 || (error.response && error.response.status === 403)) {
+      console.error("Permission error: Insufficient permissions to access Gmail")
+    } else if (error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT') {
+      console.error("Network error: Unable to connect to Google API")
+    }
+    
     throw error
   }
 }
