@@ -5,6 +5,28 @@ import { ScrollArea } from "./ui/scroll-area"
 import { Separator } from "./ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs"
 import { debugEvents } from "./debug-overlay"
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar"
+import { Badge } from "./ui/badge"
+import { Card } from "./ui/card"
+import { 
+  Mail, 
+  Star, 
+  StarOff, 
+  Archive, 
+  Trash2, 
+  RefreshCw, 
+  ChevronLeft,
+  Clock,
+  Paperclip,
+  Tag,
+  Calendar,
+  Bell,
+  Receipt,
+  MessageSquare,
+  ShoppingBag,
+  Newspaper
+} from "lucide-react"
+import { cn } from "@/lib/utils"
 
 interface Email {
   id: string
@@ -25,15 +47,174 @@ interface EmailListProps {
 
 export interface EmailListRef {
   fetchEmails: () => Promise<void>
+  getEmails: () => Email[]
 }
 
+interface Label {
+  id: string
+  name: string
+  icon: React.ReactNode
+  color: string
+  count?: number
+}
+
+const EMAIL_LABELS: Label[] = [
+  {
+    id: "inbox",
+    name: "Inbox",
+    icon: <Mail className="h-4 w-4" />,
+    color: "text-blue-500"
+  },
+  {
+    id: "awaiting-reply",
+    name: "Awaiting Reply",
+    icon: <MessageSquare className="h-4 w-4" />,
+    color: "text-orange-500"
+  },
+  {
+    id: "calendar",
+    name: "Calendar",
+    icon: <Calendar className="h-4 w-4" />,
+    color: "text-green-500"
+  },
+  {
+    id: "marketing",
+    name: "Marketing",
+    icon: <ShoppingBag className="h-4 w-4" />,
+    color: "text-purple-500"
+  },
+  {
+    id: "newsletter",
+    name: "Newsletter",
+    icon: <Newspaper className="h-4 w-4" />,
+    color: "text-yellow-500"
+  },
+  {
+    id: "notification",
+    name: "Notifications",
+    icon: <Bell className="h-4 w-4" />,
+    color: "text-red-500"
+  },
+  {
+    id: "receipt",
+    name: "Receipts",
+    icon: <Receipt className="h-4 w-4" />,
+    color: "text-gray-500"
+  }
+]
+
+// Move emailStyles outside the component
+const emailStyles = `
+  .email-body {
+    @apply text-gray-800 leading-relaxed;
+  }
+
+  /* Basic text elements */
+  .email-body p {
+    @apply my-2;
+  }
+
+  /* Links */
+  .email-body a {
+    @apply text-blue-600 hover:underline break-all;
+  }
+
+  /* Images */
+  .email-body img {
+    @apply max-w-full h-auto rounded-lg my-4;
+  }
+
+  /* Blockquotes */
+  .email-body blockquote {
+    @apply border-l-4 border-gray-200 pl-4 my-4 italic text-gray-600;
+  }
+
+  /* Code blocks */
+  .email-body pre {
+    @apply bg-gray-50 p-4 rounded-lg overflow-x-auto my-4 text-sm font-mono;
+  }
+
+  /* Tables */
+  .email-body table {
+    @apply border-collapse w-full my-4 text-sm;
+  }
+  .email-body th, .email-body td {
+    @apply border border-gray-200 p-2;
+  }
+  .email-body th {
+    @apply bg-gray-50 font-medium;
+  }
+
+  /* Email footers */
+  .email-body .email-footer {
+    @apply mt-8 pt-4 border-t border-gray-200 text-sm text-gray-500;
+  }
+  .email-body .email-footer p {
+    @apply my-1;
+  }
+  .email-body .email-footer a {
+    @apply text-gray-600 hover:text-gray-900;
+  }
+
+  /* Special content sections */
+  .email-body .special-content {
+    @apply bg-gray-50 p-4 rounded-lg my-4 text-sm;
+  }
+  .email-body .special-content a {
+    @apply text-gray-600 hover:text-gray-900;
+  }
+
+  /* Lists */
+  .email-body ul, .email-body ol {
+    @apply my-4 pl-6;
+  }
+  .email-body li {
+    @apply my-1;
+  }
+
+  /* Horizontal rules */
+  .email-body hr {
+    @apply my-6 border-t border-gray-200;
+  }
+
+  /* Small text and disclaimers */
+  .email-body small, .email-body .disclaimer {
+    @apply text-xs text-gray-500 block my-2;
+  }
+
+  /* Copyright notices */
+  .email-body .copyright {
+    @apply text-xs text-gray-400 mt-4;
+  }
+
+  /* Unsubscribe and help links */
+  .email-body .unsubscribe-links {
+    @apply text-xs text-gray-500 mt-2 space-y-1;
+  }
+  .email-body .unsubscribe-links a {
+    @apply text-gray-600 hover:text-gray-900;
+  }
+
+  /* Company information */
+  .email-body .company-info {
+    @apply text-xs text-gray-400 mt-2;
+  }
+
+  /* Break long words and URLs */
+  .email-body * {
+    @apply break-words;
+  }
+`
+
 export const EmailList = forwardRef<EmailListRef, EmailListProps>(
-  function EmailList({ accessToken, refreshToken }, ref) {
+  function EmailList({ accessToken, refreshToken }: EmailListProps, ref: React.ForwardedRef<EmailListRef>) {
     const [emails, setEmails] = useState<Email[]>([])
     const [selectedEmail, setSelectedEmail] = useState<Email | null>(null)
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [activeTab, setActiveTab] = useState("list")
+    const [selectedLabel, setSelectedLabel] = useState<string>("inbox")
+    const [labelCounts, setLabelCounts] = useState<Record<string, number>>({})
 
     // Debug when component receives tokens
     useEffect(() => {
@@ -75,7 +256,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
         const response = await trpc.google.getRecentEmails.query({
           accessToken,
           refreshToken,
-          maxResults: 10
+          maxResults: 100
         }).catch((error) => {
           // Enhanced tRPC error handling
           debugEvents.addEntry("🔍 Detailed tRPC Error Analysis:", "error")
@@ -155,6 +336,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
         
         debugEvents.addEntry("Updating component state...", "info")
         setEmails(validEmails)
+        updateLabelCounts(validEmails)
         
         if (validEmails.length > 0) {
           debugEvents.addEntry("Selecting first email...", "info")
@@ -228,9 +410,10 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
       }
     }
 
-    // Expose the fetchEmails method via ref
+    // Expose the fetchEmails and getEmails methods via ref
     useImperativeHandle(ref, () => ({
-      fetchEmails
+      fetchEmails,
+      getEmails: () => emails
     }))
 
     const handleEmailClick = (email: Email) => {
@@ -305,113 +488,311 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
       debugEvents.addEntry("\n=== End Debug Report ===", "info")
     }
 
+    // Helper function to get initials for avatar
+    const getInitials = (email: string) => {
+      const name = extractName(email)
+      return name
+        .split(' ')
+        .map(n => n[0])
+        .join('')
+        .toUpperCase()
+        .substring(0, 2)
+    }
+
+    // Helper to check if email has attachments
+    const hasAttachments = (email: Email) => {
+      return email.labelIds?.includes('HAS_ATTACHMENT') || false
+    }
+
+    // Helper to format relative time
+    const getRelativeTime = (dateString: string) => {
+      const date = new Date(dateString)
+      const now = new Date()
+      const diffInHours = Math.abs(now.getTime() - date.getTime()) / 36e5
+
+      if (diffInHours < 24) {
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      } else if (diffInHours < 48) {
+        return 'Yesterday'
+      } else {
+        return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
+      }
+    }
+
+    // Add type for processEmailBody
+    const processEmailBody = (html: string): string => {
+      if (typeof document === 'undefined') return html // Handle SSR
+      
+      const tempDiv = document.createElement('div')
+      tempDiv.innerHTML = html
+
+      // Find and wrap footer content
+      const footerContent = Array.from(tempDiv.querySelectorAll('p')).filter(p => {
+        const text = p.textContent || ''
+        return text.includes('Unsubscribe') || 
+               text.includes('©') || 
+               text.includes('Help:') ||
+               text.includes('Learn why we included this')
+      })
+
+      if (footerContent.length > 0) {
+        const footer = document.createElement('div')
+        footer.className = 'email-footer'
+        footerContent.forEach(p => {
+          footer.appendChild(p.cloneNode(true))
+          p.remove()
+        })
+        tempDiv.appendChild(footer)
+      }
+
+      // Process special content sections
+      const specialContent = Array.from(tempDiv.querySelectorAll('p')).filter(p => {
+        const text = p.textContent || ''
+        return text.includes('This email was intended for') ||
+               text.includes('Learn why we included this')
+      })
+
+      if (specialContent.length > 0) {
+        const specialDiv = document.createElement('div')
+        specialDiv.className = 'special-content'
+        specialContent.forEach(p => {
+          specialDiv.appendChild(p.cloneNode(true))
+          p.remove()
+        })
+        tempDiv.insertBefore(specialDiv, tempDiv.firstChild)
+      }
+
+      return tempDiv.innerHTML
+    }
+
+    // Add this function to filter emails by label
+    const getEmailsForLabel = (labelId: string): Email[] => {
+      if (labelId === "inbox") return emails
+      return emails.filter(email => email.labelIds?.includes(labelId.toUpperCase()))
+    }
+
+    // Add this function to update label counts
+    const updateLabelCounts = (emails: Email[]) => {
+      const counts: Record<string, number> = {}
+      EMAIL_LABELS.forEach(label => {
+        if (label.id === "inbox") {
+          counts[label.id] = emails.length
+        } else {
+          counts[label.id] = emails.filter(email => 
+            email.labelIds?.includes(label.id.toUpperCase())
+          ).length
+        }
+      })
+      setLabelCounts(counts)
+    }
+
     return (
-      <div className="w-full max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold">Your Emails</h2>
-          <div className="flex gap-2">
-            <Button onClick={debugEmails} variant="outline" size="sm">
-              Debug
-            </Button>
-            <Button onClick={fetchEmails} disabled={isLoading}>
-              {isLoading ? "Loading..." : "Fetch Recent Emails"}
-            </Button>
+      <div className="w-full max-w-6xl mx-auto h-[calc(100vh-4rem)] flex">
+        {/* Sidebar */}
+        <div className="w-64 border-r bg-gray-50 p-4">
+          <div className="space-y-1">
+            {EMAIL_LABELS.map((label) => (
+              <button
+                key={label.id}
+                onClick={() => setSelectedLabel(label.id)}
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                  selectedLabel === label.id
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-600 hover:bg-white hover:text-gray-900"
+                )}
+              >
+                <span className={label.color}>{label.icon}</span>
+                <span className="flex-1 text-left">{label.name}</span>
+                {labelCounts[label.id] > 0 && (
+                  <Badge variant="secondary" className="ml-auto">
+                    {labelCounts[label.id]}
+                  </Badge>
+                )}
+              </button>
+            ))}
           </div>
         </div>
-        
-        {error && (
-          <div className="p-3 mb-4 text-red-500 bg-red-50 rounded-md">
-            {error}
+
+        {/* Main content */}
+        <div className="flex-1 flex flex-col">
+          <div className="flex items-center justify-between p-4 border-b">
+            <div className="flex items-center gap-4">
+              <h2 className="text-xl font-semibold">Inbox</h2>
+              <Badge variant="secondary" className="ml-2">
+                {emails.length} messages
+              </Badge>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={debugEmails} variant="outline" size="sm">
+                Debug
+              </Button>
+              <Button 
+                onClick={fetchEmails} 
+                disabled={isLoading}
+                className="gap-2"
+              >
+                <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+                {isLoading ? "Loading..." : "Refresh"}
+              </Button>
+            </div>
           </div>
-        )}
-        
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="list">Email List</TabsTrigger>
-            <TabsTrigger value="view" disabled={!selectedEmail}>
-              View Email
-            </TabsTrigger>
-          </TabsList>
           
-          <TabsContent value="list" className="mt-4">
-            {emails.length === 0 ? (
-              <div className="p-4 text-center text-gray-500">
-                {isLoading ? "Loading emails..." : "No emails to display. Click 'Fetch Recent Emails' to get started."}
-              </div>
-            ) : (
-              <ScrollArea className="h-[500px] rounded-md border">
-                <div className="p-4">
-                  {emails.map((email) => (
-                    <div key={email.id}>
-                      <div 
-                        className="p-3 cursor-pointer hover:bg-gray-100 rounded-md transition-colors"
+          {error && (
+            <div className="p-3 m-4 text-red-500 bg-red-50 rounded-md border border-red-200">
+              {error}
+            </div>
+          )}
+          
+          <div className="flex-1 flex overflow-hidden">
+            {/* Email List Panel */}
+            <div className={cn(
+              "w-1/2 border-r transition-all duration-300",
+              activeTab === "view" ? "hidden md:block md:w-1/3" : "w-full md:w-1/2"
+            )}>
+              <ScrollArea className="h-full">
+                {getEmailsForLabel(selectedLabel).length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-gray-500 p-8">
+                    <Mail className="h-12 w-12 mb-4 opacity-50" />
+                    <p className="text-center">
+                      {isLoading ? "Loading emails..." : `No emails in ${EMAIL_LABELS.find(l => l.id === selectedLabel)?.name}`}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {getEmailsForLabel(selectedLabel).map((email) => (
+                      <div
+                        key={email.id}
+                        className={cn(
+                          "p-4 cursor-pointer transition-colors hover:bg-gray-50",
+                          selectedEmail?.id === email.id && "bg-gray-50"
+                        )}
                         onClick={() => handleEmailClick(email)}
                       >
-                        <div className="flex justify-between items-start mb-1">
-                          <span className="font-medium">{extractName(email.from)}</span>
-                          <span className="text-xs text-gray-500">{formatDate(email.date)}</span>
+                        <div className="flex gap-4">
+                          <Avatar className="h-10 w-10">
+                            <AvatarFallback>{getInitials(email.from)}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium truncate">
+                                  {extractName(email.from)}
+                                </p>
+                                <p className="text-sm text-gray-600 truncate">
+                                  {email.subject || "(No subject)"}
+                                </p>
+                              </div>
+                              <div className="flex flex-col items-end gap-1">
+                                <span className="text-xs text-gray-500 whitespace-nowrap">
+                                  {getRelativeTime(email.date)}
+                                </span>
+                                {hasAttachments(email) && (
+                                  <Paperclip className="h-4 w-4 text-gray-400" />
+                                )}
+                              </div>
+                            </div>
+                            <p className="text-sm text-gray-500 mt-1 line-clamp-2">
+                              {email.snippet}
+                            </p>
+                          </div>
                         </div>
-                        <div className="font-medium text-sm mb-1">{email.subject || "(No subject)"}</div>
-                        <div className="text-sm text-gray-600">{truncate(email.snippet || "", 100)}</div>
                       </div>
-                      <Separator className="my-2" />
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </ScrollArea>
-            )}
-          </TabsContent>
-          
-          <TabsContent value="view" className="mt-4">
-            {selectedEmail ? (
-              <div className="border rounded-md p-4">
-                <div className="flex justify-between items-start mb-4">
-                  <h3 className="text-xl font-bold">{selectedEmail.subject || "(No subject)"}</h3>
-                  <Button variant="outline" onClick={() => setActiveTab("list")}>
-                    Back to List
-                  </Button>
-                </div>
-                
-                <div className="mb-4">
-                  <div className="flex justify-between">
-                    <div>
-                      <div className="font-medium">From: {selectedEmail.from}</div>
-                      <div className="text-sm">To: {selectedEmail.to}</div>
+            </div>
+
+            {/* Email View Panel */}
+            <div className={cn(
+              "flex-1 transition-all duration-300",
+              activeTab === "view" ? "block" : "hidden md:block"
+            )}>
+              {selectedEmail ? (
+                <div className="h-full flex flex-col">
+                  <div className="p-4 border-b">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="md:hidden"
+                        onClick={() => setActiveTab("list")}
+                      >
+                        <ChevronLeft className="h-4 w-4 mr-2" />
+                        Back
+                      </Button>
+                      <div className="flex-1 flex items-center gap-2">
+                        <Button variant="ghost" size="icon">
+                          <Star className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon">
+                          <Archive className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="text-sm text-gray-500">
-                      {formatDate(selectedEmail.date)}
+                    
+                    <h1 className="text-xl font-semibold mb-4">
+                      {selectedEmail.subject || "(No subject)"}
+                    </h1>
+                    
+                    <div className="flex items-start gap-4">
+                      <Avatar className="h-10 w-10">
+                        <AvatarFallback>{getInitials(selectedEmail.from)}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium">{extractName(selectedEmail.from)}</p>
+                            <p className="text-sm text-gray-500">{selectedEmail.from}</p>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-gray-500">
+                            <Clock className="h-4 w-4" />
+                            <span>{formatDate(selectedEmail.date)}</span>
+                          </div>
+                        </div>
+                        <div className="mt-2">
+                          <p className="text-sm text-gray-500">To: {selectedEmail.to}</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
+
+                  <ScrollArea className="flex-1 p-4">
+                    <div className="prose max-w-none">
+                      {selectedEmail.body ? (
+                        <div 
+                          className="email-body"
+                          dangerouslySetInnerHTML={{ 
+                            __html: processEmailBody(selectedEmail.body)
+                          }} 
+                        />
+                      ) : (
+                        <div className="text-gray-600">{selectedEmail.snippet}</div>
+                      )}
+                    </div>
+                  </ScrollArea>
                 </div>
-                
-                <Separator className="my-4" />
-                
-                <ScrollArea className="h-[400px]">
-                  <div className="prose max-w-none">
-                    {selectedEmail.body ? (
-                      <div dangerouslySetInnerHTML={{ __html: selectedEmail.body }} />
-                    ) : (
-                      <div>{selectedEmail.snippet}</div>
-                    )}
-                  </div>
-                </ScrollArea>
-              </div>
-            ) : (
-              <div className="p-4 text-center text-gray-500">
-                No email selected
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-        
-        {/* JSON view for debugging */}
-        {/* {selectedEmail && (
-          <div className="mt-8 p-4 border rounded bg-gray-50">
-            <h3 className="text-sm font-mono mb-2">Raw Email Data:</h3>
-            <pre className="text-xs overflow-auto">{JSON.stringify(selectedEmail, null, 2)}</pre>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-gray-500 p-8">
+                  <Mail className="h-12 w-12 mb-4 opacity-50" />
+                  <p className="text-center">Select an email to view</p>
+                </div>
+              )}
+            </div>
           </div>
-        )} */}
+        </div>
       </div>
     )
   }
-) 
+)
+
+// Add styles to document
+if (typeof document !== 'undefined') {
+  const style = document.createElement('style')
+  style.textContent = emailStyles
+  document.head.appendChild(style)
+} 

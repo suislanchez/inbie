@@ -1,4 +1,4 @@
-import { trpc } from "@/utils/trpc";
+import { trpc, trpcClient } from "@/utils/trpc";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
@@ -33,6 +33,117 @@ import { useState, useRef, useEffect } from "react";
 
 import { useTheme } from "@/components/theme-provider";
 import { GoogleAuth } from "@/components/google-auth";
+import { EmailList, type EmailListRef } from "@/components/email-list";
+import { debugEvents } from "@/components/debug-overlay";
+import { fetchGmailEmails, type GmailEmail } from "@/lib/email-api";
+
+// CSS for email body rendering
+const emailStyles = `
+  .email-body {
+    @apply text-gray-800 leading-relaxed;
+  }
+
+  /* Basic text elements */
+  .email-body p {
+    @apply my-2;
+  }
+
+  /* Links */
+  .email-body a {
+    @apply text-blue-600 hover:underline break-all;
+  }
+
+  /* Images */
+  .email-body img {
+    @apply max-w-full h-auto rounded-lg my-4;
+  }
+
+  /* Blockquotes */
+  .email-body blockquote {
+    @apply border-l-4 border-gray-200 pl-4 my-4 italic text-gray-600;
+  }
+
+  /* Code blocks */
+  .email-body pre {
+    @apply bg-gray-50 p-4 rounded-lg overflow-x-auto my-4 text-sm font-mono;
+  }
+
+  /* Tables */
+  .email-body table {
+    @apply border-collapse w-full my-4 text-sm;
+  }
+  .email-body th, .email-body td {
+    @apply border border-gray-200 p-2;
+  }
+  .email-body th {
+    @apply bg-gray-50 font-medium;
+  }
+
+  /* Email footers */
+  .email-body .email-footer {
+    @apply mt-8 pt-4 border-t border-gray-200 text-sm text-gray-500;
+  }
+  .email-body .email-footer p {
+    @apply my-1;
+  }
+  .email-body .email-footer a {
+    @apply text-gray-600 hover:text-gray-900;
+  }
+
+  /* Special content sections */
+  .email-body .special-content {
+    @apply bg-gray-50 p-4 rounded-lg my-4 text-sm;
+  }
+  .email-body .special-content a {
+    @apply text-gray-600 hover:text-gray-900;
+  }
+
+  /* Lists */
+  .email-body ul, .email-body ol {
+    @apply my-4 pl-6;
+  }
+  .email-body li {
+    @apply my-1;
+  }
+
+  /* Horizontal rules */
+  .email-body hr {
+    @apply my-6 border-t border-gray-200;
+  }
+
+  /* Small text and disclaimers */
+  .email-body small, .email-body .disclaimer {
+    @apply text-xs text-gray-500 block my-2;
+  }
+
+  /* Copyright notices */
+  .email-body .copyright {
+    @apply text-xs text-gray-400 mt-4;
+  }
+
+  /* Unsubscribe and help links */
+  .email-body .unsubscribe-links {
+    @apply text-xs text-gray-500 mt-2 space-y-1;
+  }
+  .email-body .unsubscribe-links a {
+    @apply text-gray-600 hover:text-gray-900;
+  }
+
+  /* Company information */
+  .email-body .company-info {
+    @apply text-xs text-gray-400 mt-2;
+  }
+
+  /* Break long words and URLs */
+  .email-body * {
+    @apply break-words;
+  }
+`;
+
+// Style component to inject email styles
+function EmailStyles() {
+  return <style dangerouslySetInnerHTML={{ __html: emailStyles }} />;
+}
 
 export const Route = createFileRoute("/")({
 	component: HomeComponent,
@@ -2556,11 +2667,50 @@ function HomeComponent() {
 	};
 
 	const getAllEmails = () => {
+		// ALWAYS prioritize real emails if available, otherwise use dummy data
+		if (realEmails.length > 0) {
+			debugEvents.addEntry(`Using ${realEmails.length} real emails from Gmail`, "info");
+			return realEmails;
+		}
+		
+		debugEvents.addEntry("No real emails found, using dummy data", "warning");
 		return Object.values(DUMMY_EMAILS).flat();
 	};
 
 	const getEmailsForFolder = (folder: string) => {
 		if (folder === "all") return getAllEmails();
+		
+		// Real emails are always prioritized
+		if (realEmails.length > 0) {
+			debugEvents.addEntry(`Filtering ${realEmails.length} real emails for folder: ${folder}`, "info");
+			return realEmails.filter(email => {
+				// Map folder to badge names
+				switch (folder) {
+					case "inbox":
+						return email.badges.includes("Inbox");
+					case "important":
+						return email.badges.includes("Important") || email.badges.includes("High Priority");
+					case "to-reply":
+						return email.analytics.priority === "High" || email.analytics.priority === "Medium";
+					case "academic":
+						return email.analytics.category === "Academic";
+					case "career":
+						return email.analytics.category === "Development" || email.analytics.category === "Career";
+					case "personal":
+						return email.badges.includes("Personal") || email.analytics.category === "Personal";
+					case "newsletters":
+						return email.badges.includes("Marketing") || email.analytics.category === "Newsletter";
+					case "cold-email":
+						return email.analytics.category === "General" && !email.badges.includes("Important");
+					case "clubs":
+						return email.badges.includes("Social") || email.analytics.category === "Social";
+					default:
+						return false;
+				}
+			});
+		}
+		
+		// Only fallback to dummy data if no real emails
 		return DUMMY_EMAILS[folder as keyof typeof DUMMY_EMAILS] || [];
 	};
 
@@ -2727,8 +2877,342 @@ function HomeComponent() {
 		setTestResults(results)
 	}
 
+	// Add state for real emails from EmailList component
+	const [realEmails, setRealEmails] = useState<Email[]>([]);
+	const [googleTokens, setGoogleTokens] = useState<{
+		access_token: string
+		refresh_token: string
+	} | null>(null);
+	const emailListRef = useRef<{ fetchEmails: () => Promise<void> } | null>(null);
+	
+	// Load tokens from localStorage on component mount
+	useEffect(() => {
+		debugEvents.addEntry("Checking for stored tokens in Index component", "info")
+		const storedTokens = localStorage.getItem("googleTokens")
+		if (storedTokens) {
+			try {
+				const tokens = JSON.parse(storedTokens)
+				if (tokens.access_token && tokens.refresh_token) {
+					debugEvents.addEntry("Found valid tokens in localStorage", "success")
+					setGoogleTokens({
+						access_token: tokens.access_token,
+						refresh_token: tokens.refresh_token
+					})
+				} else {
+					debugEvents.addEntry("Tokens found but missing required fields", "warning")
+				}
+			} catch (error) {
+				console.error("Error parsing stored tokens:", error)
+				debugEvents.addEntry("Error parsing stored tokens in Index component", "error")
+			}
+		} else {
+			debugEvents.addEntry("No stored tokens found in Index component", "info")
+		}
+	}, [])
+
+	// Listen for token updates
+	useEffect(() => {
+		const handleStorageChange = () => {
+			debugEvents.addEntry("Storage change detected in Index component", "info")
+			const storedTokens = localStorage.getItem("googleTokens")
+			if (storedTokens) {
+				try {
+					const tokens = JSON.parse(storedTokens)
+					debugEvents.addEntry("Updated tokens from storage event", "success")
+					setGoogleTokens({
+						access_token: tokens.access_token,
+						refresh_token: tokens.refresh_token
+					})
+				} catch (error) {
+					console.error("Error parsing stored tokens:", error)
+					debugEvents.addEntry("Error parsing updated tokens", "error")
+				}
+			} else {
+				// Tokens were removed
+				debugEvents.addEntry("Tokens removed from storage", "warning")
+				setGoogleTokens(null)
+			}
+		}
+
+		window.addEventListener("storage", handleStorageChange)
+		
+		// Custom event for same-page updates
+		const handleTokensUpdated = () => {
+			debugEvents.addEntry("Token update event received in Index component", "info")
+			const storedTokens = localStorage.getItem("googleTokens")
+			if (storedTokens) {
+				try {
+					const tokens = JSON.parse(storedTokens)
+					setGoogleTokens({
+						access_token: tokens.access_token,
+						refresh_token: tokens.refresh_token
+					})
+					debugEvents.addEntry("Tokens updated from custom event", "success")
+				} catch (error) {
+					debugEvents.addEntry("Error parsing tokens from custom event", "error")
+				}
+			} else {
+				setGoogleTokens(null)
+				debugEvents.addEntry("Tokens cleared from custom event", "warning")
+			}
+		}
+		
+		window.addEventListener("googleTokensUpdated", handleTokensUpdated)
+		
+		return () => {
+			window.removeEventListener("storage", handleStorageChange)
+			window.removeEventListener("googleTokensUpdated", handleTokensUpdated)
+		}
+	}, [])
+
+	// Function to convert EmailList emails to the format used in this component
+	const adaptEmailsFromEmailList = (emails: any[]) => {
+		debugEvents.addEntry(`Adapting ${emails.length} emails from Gmail API format`, "info");
+		
+		return emails.map(email => {
+			// Convert label IDs to badges
+			const badges = getLabelBadges(email.labelIds || []);
+			
+			// Determine priority based on labels
+			const priority = badges.includes("High Priority") ? "High" : 
+				badges.includes("Important") ? "Medium" : "Low";
+			
+			// Get a category based on from address or subject
+			const category = getCategoryFromEmail(email);
+			
+			// Determine a mock response time based on date
+			const responseTime = getMockResponseTime(email.date);
+			
+			// Generate a mock sentiment
+			const sentiment = ["Professional", "Informative", "Positive", "Neutral"][Math.floor(Math.random() * 4)];
+			
+			// Use numeric ID for compatibility with existing code
+			// Note: email.id is a string from Gmail API, we convert to number
+			const numericId = parseInt(email.id.slice(-8), 16) || Math.floor(Math.random() * 10000);
+			
+			return {
+				id: numericId,
+				sender: email.from ? extractName(email.from) : "Unknown Sender",
+				time: email.date ? getRelativeTime(email.date) : "Unknown time",
+				subject: email.subject || "(No subject)",
+				preview: email.snippet || "",
+				content: email.body || "",
+				badges,
+				hasAIDraft: false, // No AI drafts for real emails yet
+				aiDraft: "",
+				analytics: {
+					responseTime,
+					priority,
+					category,
+					sentiment
+				}
+			};
+		});
+	};
+	
+	// Helper function to extract name from email address
+	const extractName = (emailString: string) => {
+		const match = emailString.match(/^"?([^"<]+)"?\s*<.*>$/)
+		return match ? match[1].trim() : emailString
+	};
+	
+	// Helper function to get relative time
+	const getRelativeTime = (dateString: string) => {
+		try {
+			const date = new Date(dateString);
+			const now = new Date();
+			const diffMs = now.getTime() - date.getTime();
+			const diffMins = Math.floor(diffMs / (1000 * 60));
+			const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+			const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+			
+			if (diffMins < 60) {
+				return diffMins === 1 ? "1 minute ago" : `${diffMins} minutes ago`;
+			} else if (diffHours < 24) {
+				return diffHours === 1 ? "1 hour ago" : `${diffHours} hours ago`;
+			} else if (diffDays === 1) {
+				return "Yesterday";
+			} else if (diffDays < 7) {
+				return `${diffDays} days ago`;
+			} else {
+				return date.toLocaleDateString();
+			}
+		} catch (error) {
+			console.error("Error formatting date:", error);
+			return dateString;
+		}
+	};
+	
+	// Helper function to convert label IDs to badges
+	const getLabelBadges = (labelIds: string[]) => {
+		const badges: string[] = [];
+		
+		// Map Gmail system labels to badges
+		if (labelIds.includes("IMPORTANT")) badges.push("Important");
+		if (labelIds.includes("INBOX")) badges.push("Inbox");
+		
+		// Determine priority
+		if (labelIds.some(label => label.includes("IMPORTANT") || label.includes("PRIORITY"))) {
+			badges.push("High Priority");
+		}
+		
+		// Add category badges
+		if (labelIds.some(label => label.includes("CATEGORY_PERSONAL"))) badges.push("Personal");
+		if (labelIds.some(label => label.includes("CATEGORY_SOCIAL"))) badges.push("Social");
+		if (labelIds.some(label => label.includes("CATEGORY_UPDATES"))) badges.push("Updates");
+		if (labelIds.some(label => label.includes("CATEGORY_FORUMS"))) badges.push("Forums");
+		if (labelIds.some(label => label.includes("CATEGORY_PROMOTIONS"))) badges.push("Marketing");
+		
+		// Ensure at least one badge
+		if (badges.length === 0) badges.push("Inbox");
+		
+		return badges;
+	};
+	
+	// Helper function to get category from email
+	const getCategoryFromEmail = (email: any) => {
+		// Check labels first
+		if ((email.labelIds || []).some((label: string) => label.includes("CATEGORY_PERSONAL"))) return "Personal";
+		if ((email.labelIds || []).some((label: string) => label.includes("CATEGORY_SOCIAL"))) return "Social";
+		if ((email.labelIds || []).some((label: string) => label.includes("CATEGORY_UPDATES"))) return "Updates";
+		if ((email.labelIds || []).some((label: string) => label.includes("CATEGORY_FORUMS"))) return "Forums";
+		if ((email.labelIds || []).some((label: string) => label.includes("CATEGORY_PROMOTIONS"))) return "Marketing";
+		
+		// Check domain or subject
+		const from = email.from || "";
+		const subject = email.subject || "";
+		
+		if (from.includes("@berkeley.edu") || subject.includes("Berkeley")) return "Academic";
+		if (from.includes("@github.com") || subject.includes("GitHub")) return "Development";
+		if (subject.toLowerCase().includes("meeting") || subject.toLowerCase().includes("calendar")) return "Meeting";
+		if (subject.toLowerCase().includes("newsletter") || from.toLowerCase().includes("newsletter")) return "Newsletter";
+		
+		// Default
+		return "General";
+	};
+	
+	// Helper function to get mock response time
+	const getMockResponseTime = (dateString: string) => {
+		try {
+			const date = new Date(dateString);
+			const now = new Date();
+			const diffMs = now.getTime() - date.getTime();
+			const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+			
+			if (diffHours < 2) return "30 minutes";
+			if (diffHours < 5) return "2 hours";
+			if (diffHours < 24) return "6 hours";
+			if (diffHours < 48) return "1 day";
+			return "3 days";
+		} catch (error) {
+			return "Unknown";
+		}
+	};
+	
+	// Define a type for the email data we receive from the API
+	interface GmailEmail {
+		id: string;
+		threadId: string;
+		snippet: string;
+		subject: string;
+		from: string;
+		to: string;
+		date: string;
+		body: string;
+		labelIds: string[];
+	}
+	// State for tracking loading state
+	const [isLoadingEmails, setIsLoadingEmails] = useState(false)
+	
+	// Use EmailList's implementation instead of our own
+	const fetchEmails = async () => {
+		if (!googleTokens?.access_token || !googleTokens?.refresh_token) {
+			debugEvents.addEntry("Cannot fetch emails: Missing Google tokens", "error")
+			return
+		}
+		
+		setIsLoadingEmails(true)
+		debugEvents.addEntry("Using EmailList's fetchEmails implementation...", "info")
+		
+		try {
+			// Call the EmailList component's fetchEmails method through the ref
+			if (emailListRef.current) {
+				debugEvents.addEntry("Calling EmailList.fetchEmails() through ref...", "info")
+				await emailListRef.current.fetchEmails()
+				
+				// Now get the emails directly from the EmailList component using our new getEmails method
+				const emailListEmails = emailListRef.current.getEmails()
+				
+				if (emailListEmails && emailListEmails.length > 0) {
+					debugEvents.addEntry(`Retrieved ${emailListEmails.length} emails from EmailList component`, "success")
+					
+					// Convert EmailList emails to our format
+					const adaptedEmails = adaptEmailsFromEmailList(emailListEmails)
+					
+					// Update state with fetched emails
+					setRealEmails(adaptedEmails)
+					debugEvents.addEntry(`Successfully adapted ${adaptedEmails.length} emails to our format`, "success")
+					
+					// Force re-render by making a new array
+					setRealEmails([...adaptedEmails])
+					
+					// Reset selected email if it was set
+					if (selectedEmail) {
+						setSelectedEmail(null)
+					}
+				} else {
+					debugEvents.addEntry("EmailList returned no emails", "warning")
+				}
+			} else {
+				debugEvents.addEntry("EmailList ref is not available - falling back to direct fetch", "warning")
+				
+				// Fallback to original implementation
+				const response = await fetchGmailEmails(
+					googleTokens.access_token,
+					googleTokens.refresh_token,
+					100 // Fetch 100 emails
+				)
+				
+				if (response && Array.isArray(response)) {
+					const adaptedEmails = adaptEmailsFromEmailList(response)
+					setRealEmails(adaptedEmails)
+					debugEvents.addEntry(`Fallback: set ${adaptedEmails.length} emails to state`, "info")
+				}
+			}
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
+			debugEvents.addEntry(`Failed to fetch emails: ${errorMessage}`, "error")
+			console.error("[fetchEmails] Error:", error)
+		} finally {
+			setIsLoadingEmails(false)
+		}
+	}
+	
+	// Fetch emails when tokens become available
+	useEffect(() => {
+		if (googleTokens) {
+			debugEvents.addEntry("Auto-fetching emails after tokens available", "info");
+			
+			// Only use the EmailList component's fetchEmails method
+			// This will trigger our fetchEmails function which now uses the EmailList implementation
+			fetchEmails();
+			
+			// Log that we're now using EmailList's implementation
+			debugEvents.addEntry("Now using EmailList's implementation for fetching emails", "info");
+		}
+	}, [googleTokens]);
+	
+	// Debug when real emails state changes
+	useEffect(() => {
+		if (realEmails.length > 0) {
+			debugEvents.addEntry(`Real emails state updated with ${realEmails.length} emails`, "success");
+			debugEvents.addEntry(`First email: "${realEmails[0].subject}" from ${realEmails[0].sender}`, "info");
+		}
+	}, [realEmails]);
+
 	return (
 		<div className="flex h-screen bg-background">
+			<EmailStyles />
 			{/* Sidebar with tools */}
 			<div className="flex h-full w-64 flex-col border-r bg-background">
 				{/* Account Section */}
@@ -2961,6 +3445,27 @@ function HomeComponent() {
 								: activeFolder.replace("-", " ")}
 						</h1>
 						<div className="flex items-center gap-2">
+							{/* Google Auth status */}
+							{!googleTokens ? (
+								<div className="mr-2">
+									<GoogleAuth />
+								</div>
+							) : (
+								<div className="flex items-center gap-2 mr-2">
+									<span className="text-xs text-green-500">✓ Gmail Connected</span>
+									<button 
+										onClick={fetchEmails}
+										className="p-1 rounded-full hover:bg-accent"
+										title="Refresh emails"
+										disabled={isLoadingEmails}
+									>
+										<RefreshCw className={`h-4 w-4 ${isLoadingEmails ? 'animate-spin' : ''}`} />
+									</button>
+									{isLoadingEmails && (
+										<span className="text-xs text-gray-500">Loading...</span>
+									)}
+								</div>
+							)}
 							<button
 								onClick={handleNewEmail}
 								className="rounded-md bg-primary px-4 py-2 text-primary-foreground text-sm hover:bg-primary/90"
@@ -3136,8 +3641,8 @@ function HomeComponent() {
 													<div className="mt-1 font-medium text-sm">
 														{email.subject}
 													</div>
-													<div className="mt-1 text-muted-foreground text-sm">
-														{email.preview}
+													<div className="mt-1 text-muted-foreground text-sm line-clamp-2">
+														{email.preview || email.content?.substring(0, 100)}
 													</div>
 													{email.hasAIDraft && (
 														<div className="mt-2">
@@ -3255,9 +3760,16 @@ function HomeComponent() {
 													</div>
 												</div>
 												<div className="prose prose-sm max-w-none text-sm">
-													<pre className="whitespace-pre-wrap font-sans">
-														{selectedEmail.content}
-													</pre>
+													{selectedEmail.content.includes("<") && selectedEmail.content.includes(">") ? (
+														<div 
+															className="email-body"
+															dangerouslySetInnerHTML={{ __html: selectedEmail.content }}
+														/>
+													) : (
+														<pre className="whitespace-pre-wrap font-sans">
+															{selectedEmail.content}
+														</pre>
+													)}
 												</div>
 											</div>
 
@@ -3349,6 +3861,17 @@ function HomeComponent() {
 						</>
 					)}
 				</div>
+
+				{/* Hidden EmailList component to fetch real emails */}
+				{googleTokens && (
+					<div className="hidden">
+						<EmailList 
+							accessToken={googleTokens.access_token}
+							refreshToken={googleTokens.refresh_token}
+							ref={emailListRef}
+						/>
+					</div>
+				)}
 
 				{/* New Email Modal (simplified) */}
 				{showNewEmailModal && (
