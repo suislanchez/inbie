@@ -2883,7 +2883,9 @@ function HomeComponent() {
 		access_token: string
 		refresh_token: string
 	} | null>(null);
-	const emailListRef = useRef<{ fetchEmails: () => Promise<void> } | null>(null);
+	const emailListRef = useRef<{
+		getEmails: any; fetchEmails: () => Promise<void> 
+} | null>(null);
 	
 	// Load tokens from localStorage on component mount
 	useEffect(() => {
