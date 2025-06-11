@@ -207,4 +207,222 @@ export async function refreshAccessToken(refreshToken: string) {
   
   const { credentials } = await oAuth2Client.refreshAccessToken()
   return credentials
+}
+
+// Create a draft email
+export async function createDraft(
+  accessToken: string, 
+  refreshToken: string, 
+  messageData: { 
+    to: string, 
+    subject: string, 
+    body: string,
+    threadId?: string 
+  }
+) {
+  console.log("=== Starting Draft Creation Process ===")
+  console.log("Input validation:", {
+    hasAccessToken: !!accessToken,
+    hasRefreshToken: !!refreshToken,
+    to: messageData.to,
+    subject: messageData.subject,
+    hasBody: !!messageData.body,
+    threadId: messageData.threadId
+  })
+
+  if (!accessToken || !refreshToken) {
+    console.error("Missing authentication tokens")
+    throw new Error("Authentication tokens are required")
+  }
+
+  if (!messageData.to || !messageData.subject || !messageData.body) {
+    console.error("Missing required message data:", {
+      hasTo: !!messageData.to,
+      hasSubject: !!messageData.subject,
+      hasBody: !!messageData.body
+    })
+    throw new Error("To, subject, and body are required fields")
+  }
+
+  try {
+    console.log("Initializing OAuth client...")
+    const auth = new Auth.OAuth2Client({
+      clientId: GOOGLE_CLIENT_ID,
+      clientSecret: GOOGLE_CLIENT_SECRET,
+      redirectUri: REDIRECT_URI
+    })
+    
+    console.log("Setting OAuth credentials...")
+    auth.setCredentials({ 
+      access_token: accessToken,
+      refresh_token: refreshToken
+    })
+    
+    console.log("Creating Gmail client...")
+    const gmail = google.gmail('v1')
+    gmail.context._options = { auth }
+    
+    console.log("Preparing email content...")
+    const emailContent = [
+      `To: ${messageData.to}`,
+      `Subject: ${messageData.subject}`,
+      'Content-Type: text/html; charset=utf-8',
+      'MIME-Version: 1.0',
+      '',
+      messageData.body
+    ].join('\n');
+
+    console.log("Encoding email content...")
+    const encodedEmail = Buffer.from(emailContent)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    
+    console.log("Creating draft via Gmail API...")
+    const response = await gmail.users.drafts.create({
+      userId: 'me',
+      requestBody: {
+        message: {
+          raw: encodedEmail,
+          threadId: messageData.threadId
+        }
+      }
+    });
+    
+    console.log("Draft created successfully:", {
+      draftId: response.data.id,
+      messageId: response.data.message?.id,
+      threadId: response.data.message?.threadId
+    })
+    return response.data;
+  } catch (error: any) {
+    console.error("Error creating draft:", {
+      name: error.name,
+      message: error.message,
+      code: error.code,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data
+    })
+
+    // Handle specific error cases
+    if (error.code === 401 || (error.response && error.response.status === 401)) {
+      throw new Error("Authentication failed. Please re-authenticate.")
+    } else if (error.code === 403 || (error.response && error.response.status === 403)) {
+      throw new Error("Insufficient permissions to create drafts.")
+    } else if (error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT') {
+      throw new Error("Network error. Please check your connection.")
+    }
+
+    throw new Error(`Failed to create draft: ${error.message}`)
+  }
+}
+
+// Send an email
+export async function sendEmail(
+  accessToken: string, 
+  refreshToken: string, 
+  messageData: { 
+    to: string, 
+    subject: string, 
+    body: string,
+    threadId?: string 
+  }
+) {
+  console.log("=== Starting Email Send Process ===")
+  console.log("Input validation:", {
+    hasAccessToken: !!accessToken,
+    hasRefreshToken: !!refreshToken,
+    to: messageData.to,
+    subject: messageData.subject,
+    hasBody: !!messageData.body,
+    threadId: messageData.threadId
+  })
+
+  if (!accessToken || !refreshToken) {
+    console.error("Missing authentication tokens")
+    throw new Error("Authentication tokens are required")
+  }
+
+  if (!messageData.to || !messageData.subject || !messageData.body) {
+    console.error("Missing required message data:", {
+      hasTo: !!messageData.to,
+      hasSubject: !!messageData.subject,
+      hasBody: !!messageData.body
+    })
+    throw new Error("To, subject, and body are required fields")
+  }
+
+  try {
+    console.log("Initializing OAuth client...")
+    const auth = new Auth.OAuth2Client({
+      clientId: GOOGLE_CLIENT_ID,
+      clientSecret: GOOGLE_CLIENT_SECRET,
+      redirectUri: REDIRECT_URI
+    })
+    
+    console.log("Setting OAuth credentials...")
+    auth.setCredentials({ 
+      access_token: accessToken,
+      refresh_token: refreshToken
+    })
+    
+    console.log("Creating Gmail client...")
+    const gmail = google.gmail('v1')
+    gmail.context._options = { auth }
+    
+    console.log("Preparing email content...")
+    const emailContent = [
+      `To: ${messageData.to}`,
+      `Subject: ${messageData.subject}`,
+      'Content-Type: text/html; charset=utf-8',
+      'MIME-Version: 1.0',
+      '',
+      messageData.body
+    ].join('\n');
+
+    console.log("Encoding email content...")
+    const encodedEmail = Buffer.from(emailContent)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    
+    console.log("Sending email via Gmail API...")
+    const response = await gmail.users.messages.send({
+      userId: 'me',
+      requestBody: {
+        raw: encodedEmail,
+        threadId: messageData.threadId
+      }
+    });
+    
+    console.log("Email sent successfully:", {
+      messageId: response.data.id,
+      threadId: response.data.threadId,
+      labelIds: response.data.labelIds
+    })
+    return response.data;
+  } catch (error: any) {
+    console.error("Error sending email:", {
+      name: error.name,
+      message: error.message,
+      code: error.code,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data
+    })
+
+    // Handle specific error cases
+    if (error.code === 401 || (error.response && error.response.status === 401)) {
+      throw new Error("Authentication failed. Please re-authenticate.")
+    } else if (error.code === 403 || (error.response && error.response.status === 403)) {
+      throw new Error("Insufficient permissions to send emails.")
+    } else if (error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT') {
+      throw new Error("Network error. Please check your connection.")
+    }
+
+    throw new Error(`Failed to send email: ${error.message}`)
+  }
 } 

@@ -32,6 +32,8 @@ import {
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import type { ChangeEvent } from "react";
+import { useMutation } from "@tanstack/react-query"
+import { toast } from "sonner"
 
 import { useTheme } from "@/components/theme-provider";
 import { GoogleAuth } from "@/components/google-auth";
@@ -230,6 +232,7 @@ interface Email {
 	badges: string[];
 	hasAIDraft: boolean;
 	aiDraft: string;
+	threadId?: string; // Add threadId field
 	analytics: {
 		responseTime: string;
 		priority: string;
@@ -3406,6 +3409,118 @@ function HomeComponent() {
 		}
 	}, [realEmails]);
 
+	// Add these near other handlers in HomeComponent
+	const handleUseDraft = async () => {
+		if (!selectedEmail || !googleTokens) {
+			console.error("Cannot use draft: Missing email or tokens")
+			toast.error("Missing email or authentication")
+			return
+		}
+
+		if (isCreatingDraft) return
+
+		console.log("Using draft for email:", {
+			emailId: selectedEmail.id,
+			subject: selectedEmail.subject,
+			hasDraft: !!selectedEmail.aiDraft
+		})
+
+		setIsCreatingDraft(true)
+		try {
+			await createDraftMutation.mutateAsync({
+				accessToken: googleTokens.access_token,
+				refreshToken: googleTokens.refresh_token,
+				messageData: {
+					to: selectedEmail.senderEmail || selectedEmail.sender,
+					subject: `Re: ${selectedEmail.subject}`,
+					body: selectedEmail.aiDraft,
+					threadId: selectedEmail.threadId
+				}
+			})
+		} finally {
+			setIsCreatingDraft(false)
+		}
+	}
+
+	const handleSendAsIs = async () => {
+		if (!selectedEmail || !googleTokens) {
+			console.error("Cannot send email: Missing email or tokens")
+			toast.error("Missing email or authentication")
+			return
+		}
+
+		if (isSendingEmail) return
+
+		console.log("Sending email as is:", {
+			emailId: selectedEmail.id,
+			subject: selectedEmail.subject,
+			hasDraft: !!selectedEmail.aiDraft
+		})
+
+		setIsSendingEmail(true)
+		try {
+			await sendEmailMutation.mutateAsync({
+				accessToken: googleTokens.access_token,
+				refreshToken: googleTokens.refresh_token,
+				messageData: {
+					to: selectedEmail.senderEmail || selectedEmail.sender,
+					subject: `Re: ${selectedEmail.subject}`,
+					body: selectedEmail.aiDraft,
+					threadId: selectedEmail.threadId
+				}
+			})
+		} finally {
+			setIsSendingEmail(false)
+		}
+	}
+
+	// Add these near other state declarations
+	const [isSendingEmail, setIsSendingEmail] = useState(false)
+	const [isCreatingDraft, setIsCreatingDraft] = useState(false)
+
+	// Add these mutations near other hooks
+	const createDraftMutation = useMutation({
+		mutationFn: (data: {
+			accessToken: string
+			refreshToken: string
+			messageData: {
+				to: string
+				subject: string
+				body: string
+				threadId?: string
+			}
+		}) => trpcClient.google.createDraft.mutate(data),
+		onSuccess: (data) => {
+			console.log("Draft created successfully:", data)
+			toast.success("Draft created successfully")
+		},
+		onError: (error: Error) => {
+			console.error("Failed to create draft:", error)
+			toast.error(error.message || "Failed to create draft")
+		}
+	})
+
+	const sendEmailMutation = useMutation({
+		mutationFn: (data: {
+			accessToken: string
+			refreshToken: string
+			messageData: {
+				to: string
+				subject: string
+				body: string
+				threadId?: string
+			}
+		}) => trpcClient.google.sendEmail.mutate(data),
+		onSuccess: (data) => {
+			console.log("Email sent successfully:", data)
+			toast.success("Email sent successfully")
+		},
+		onError: (error: Error) => {
+			console.error("Failed to send email:", error)
+			toast.error(error.message || "Failed to send email")
+		}
+	})
+
 	return (
 		<div className="flex h-screen bg-background">
 			<EmailStyles />
@@ -4059,14 +4174,25 @@ function HomeComponent() {
 														<div className="flex items-center gap-2">
 															<button 
 																className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-primary-foreground text-xs hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-																disabled={isDraftGenerating || !selectedEmail.hasAIDraft}
+																onClick={handleUseDraft}
+																disabled={isDraftGenerating || !selectedEmail.hasAIDraft || isCreatingDraft}
 															>
-																<CheckCircle className="h-3.5 w-3.5" />
-																Use Draft
+																{isCreatingDraft ? (
+																	<>
+																		<RefreshCw className="h-3.5 w-3.5 animate-spin" />
+																		Creating...
+																	</>
+																) : (
+																	<>
+																		<CheckCircle className="h-3.5 w-3.5" />
+																		Use Draft
+																	</>
+																)}
 															</button>
 															<button 
 																className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
 																onClick={handleGenerateDraft}
+																
 																disabled={isDraftGenerating}
 															>
 																<RefreshCw className="h-3.5 w-3.5" />
@@ -4074,10 +4200,20 @@ function HomeComponent() {
 															</button>
 															<button 
 																className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
-																disabled={isDraftGenerating || !selectedEmail.hasAIDraft}
+																onClick={handleSendAsIs}
+																disabled={isDraftGenerating || !selectedEmail.hasAIDraft || isSendingEmail}
 															>
-																<Send className="h-3.5 w-3.5" />
-																Send as is
+																{isSendingEmail ? (
+																	<>
+																		<RefreshCw className="h-3.5 w-3.5 animate-spin" />
+																		Sending...
+																	</>
+																) : (
+																	<>
+																		<Send className="h-3.5 w-3.5" />
+																		Send as is
+																	</>
+																)}
 															</button>
 														</div>
 													</div>

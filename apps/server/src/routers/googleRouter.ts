@@ -6,7 +6,9 @@ import {
   getTokens,
   getUserInfo,
   getRecentEmails,
-  refreshAccessToken
+  refreshAccessToken,
+  createDraft,
+  sendEmail
 } from "../lib/googleAuth"
 
 export const googleRouter = router({
@@ -115,6 +117,64 @@ export const googleRouter = router({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to refresh access token"
+        })
+      }
+    }),
+
+  // Create a draft email
+  createDraft: publicProcedure
+    .input(z.object({
+      accessToken: z.string(),
+      refreshToken: z.string(),
+      messageData: z.object({
+        to: z.string(),
+        subject: z.string(),
+        body: z.string(),
+        threadId: z.string().optional()
+      })
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const draft = await createDraft(
+          input.accessToken,
+          input.refreshToken,
+          input.messageData
+        )
+        return { draft }
+      } catch (error) {
+        console.error("Error creating draft:", error)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error instanceof Error ? error.message : "Failed to create draft"
+        })
+      }
+    }),
+
+  // Send an email
+  sendEmail: publicProcedure
+    .input(z.object({
+      accessToken: z.string(),
+      refreshToken: z.string(),
+      messageData: z.object({
+        to: z.string(),
+        subject: z.string(),
+        body: z.string(),
+        threadId: z.string().optional()
+      })
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const message = await sendEmail(
+          input.accessToken,
+          input.refreshToken,
+          input.messageData
+        )
+        return { message }
+      } catch (error) {
+        console.error("Error sending email:", error)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error instanceof Error ? error.message : "Failed to send email"
         })
       }
     })
