@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { useState, useEffect, useRef } from "react"
 import { GoogleAuth } from "../components/google-auth"
-import { EmailList } from "../components/email-list"
+import { EmailList, type EmailListRef } from "../components/email-list"
 import { debugEvents } from "../components/debug-overlay"
 
 export const Route = createFileRoute("/gmail")({
@@ -14,7 +14,7 @@ function Gmail() {
     refresh_token: string
   } | null>(null)
   
-  const emailListRef = useRef<{ fetchEmails: () => Promise<void> } | null>(null)
+  const emailListRef = useRef<EmailListRef | null>(null)
 
   // Debug component mount
   useEffect(() => {

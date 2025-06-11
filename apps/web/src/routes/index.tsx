@@ -37,7 +37,7 @@ import { toast } from "sonner"
 
 import { useTheme } from "@/components/theme-provider";
 import { GoogleAuth } from "@/components/google-auth";
-import { EmailList, type EmailListRef } from "@/components/email-list";
+import { EmailList, type EmailListRef } from "../components/email-list";
 import { debugEvents } from "@/components/debug-overlay";
 import { fetchGmailEmails, type GmailEmail } from "@/lib/email-api";
 import { generateEmailDraft, type EmailData } from "@/lib/ai-draft";
@@ -3072,9 +3072,7 @@ function HomeComponent() {
 		access_token: string
 		refresh_token: string
 	} | null>(null);
-	const emailListRef = useRef<{
-		getEmails: any; fetchEmails: () => Promise<void> 
-} | null>(null);
+	const emailListRef = useRef<EmailListRef | null>(null)
 	
 	// Load tokens from localStorage on component mount
 	useEffect(() => {
