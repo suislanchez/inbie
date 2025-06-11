@@ -40,37 +40,46 @@ import { fetchGmailEmails, type GmailEmail } from "@/lib/email-api";
 // CSS for email body rendering
 const emailStyles = `
   .email-body {
-    @apply text-gray-800 leading-relaxed;
+    @apply text-gray-800 leading-relaxed space-y-1 max-w-[800px] mx-auto break-words overflow-wrap-anywhere;
   }
 
   /* Basic text elements */
   .email-body p {
-    @apply my-2;
+    @apply my-1 leading-relaxed;
+  }
+
+  /* Condense multiple consecutive breaks */
+  .email-body br + br {
+    display: none;
   }
 
   /* Links */
   .email-body a {
-    @apply text-blue-600 hover:underline break-all;
+    @apply text-blue-600 underline break-all hover:text-blue-800 overflow-wrap-anywhere;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+    color: #2563eb; /* Tailwind blue-600 */
   }
 
   /* Images */
   .email-body img {
-    @apply max-w-full h-auto rounded-lg my-4;
+    @apply max-w-full h-auto rounded-lg my-2 object-contain;
+    max-height: 400px;
   }
 
   /* Blockquotes */
   .email-body blockquote {
-    @apply border-l-4 border-gray-200 pl-4 my-4 italic text-gray-600;
+    @apply border-l-4 border-gray-200 pl-4 my-2 italic text-gray-600 bg-gray-50 py-2;
   }
 
   /* Code blocks */
   .email-body pre {
-    @apply bg-gray-50 p-4 rounded-lg overflow-x-auto my-4 text-sm font-mono;
+    @apply bg-gray-50 p-4 rounded-lg overflow-x-auto my-3 text-sm font-mono;
   }
 
   /* Tables */
   .email-body table {
-    @apply border-collapse w-full my-4 text-sm;
+    @apply border-collapse w-full my-3 text-sm;
   }
   .email-body th, .email-body td {
     @apply border border-gray-200 p-2;
@@ -81,49 +90,51 @@ const emailStyles = `
 
   /* Email footers */
   .email-body .email-footer {
-    @apply mt-8 pt-4 border-t border-gray-200 text-sm text-gray-500;
+    @apply mt-4 pt-3 border-t border-gray-200 text-sm text-gray-500;
   }
   .email-body .email-footer p {
     @apply my-1;
   }
   .email-body .email-footer a {
-    @apply text-gray-600 hover:text-gray-900;
+    @apply text-blue-600 hover:text-blue-800;
+    color: #2563eb; /* Tailwind blue-600 */
   }
 
   /* Special content sections */
   .email-body .special-content {
-    @apply bg-gray-50 p-4 rounded-lg my-4 text-sm;
+    @apply bg-gray-50 p-3 rounded-lg my-3 text-sm;
   }
   .email-body .special-content a {
-    @apply text-gray-600 hover:text-gray-900;
+    @apply text-blue-600 hover:text-blue-800;
+    color: #2563eb; /* Tailwind blue-600 */
   }
 
   /* Lists */
   .email-body ul, .email-body ol {
-    @apply my-4 pl-6;
+    @apply my-2 pl-6 space-y-1;
   }
   .email-body li {
-    @apply my-1;
+    @apply my-0.5;
   }
 
   /* Horizontal rules */
   .email-body hr {
-    @apply my-6 border-t border-gray-200;
+    @apply my-3 border-t border-gray-200;
   }
 
   /* Small text and disclaimers */
   .email-body small, .email-body .disclaimer {
-    @apply text-xs text-gray-500 block my-2;
+    @apply text-xs text-gray-500 block my-1;
   }
 
   /* Copyright notices */
   .email-body .copyright {
-    @apply text-xs text-gray-400 mt-4;
+    @apply text-xs text-gray-400 mt-2;
   }
 
   /* Unsubscribe and help links */
   .email-body .unsubscribe-links {
-    @apply text-xs text-gray-500 mt-2 space-y-1;
+    @apply text-xs text-gray-500 mt-1 space-y-0.5;
   }
   .email-body .unsubscribe-links a {
     @apply text-gray-600 hover:text-gray-900;
@@ -131,12 +142,50 @@ const emailStyles = `
 
   /* Company information */
   .email-body .company-info {
-    @apply text-xs text-gray-400 mt-2;
+    @apply text-xs text-gray-400 mt-1;
   }
 
   /* Break long words and URLs */
   .email-body * {
-    @apply break-words;
+    @apply break-words overflow-wrap-anywhere;
+  }
+
+  /* Email signatures */
+  .email-body .signature {
+    @apply mt-3 pt-2 border-t border-gray-200 text-sm text-gray-600;
+  }
+
+  /* Quoted text */
+  .email-body .quoted-text {
+    @apply mt-2 pl-3 border-l-4 border-gray-200 text-sm text-gray-500;
+  }
+
+  /* Email headers */
+  .email-body .email-header {
+    @apply mb-3 pb-2 border-b border-gray-200;
+  }
+
+  /* Email metadata */
+  .email-body .email-meta {
+    @apply text-xs text-gray-500 mb-2;
+  }
+
+  /* Email attachments */
+  .email-body .attachments {
+    @apply mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200;
+  }
+  .email-body .attachment-item {
+    @apply flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900;
+  }
+
+  /* Remove excess line height from paragraphs with just a break */
+  .email-body p:empty, .email-body div:empty {
+    @apply hidden;
+  }
+
+  /* Dividers that are often used for spacing */
+  .email-body div + div:empty {
+    @apply hidden;
   }
 `;
 
@@ -169,6 +218,8 @@ const TITLE_TEXT = `
 interface Email {
 	id: number;
 	sender: string;
+	senderEmail?: string; // Optional field for sender's email address
+	to?: string; // Optional field for recipient's email address
 	time: string;
 	subject: string;
 	preview: string;
@@ -182,6 +233,39 @@ interface Email {
 		category: string;
 		sentiment: string;
 	};
+}
+
+// Helper function to format email dates properly
+function formatEmailDate(dateString: string) {
+  try {
+    // Try to convert relative time strings to dates
+    if (dateString.includes('ago')) {
+      const now = new Date();
+      if (dateString.includes('minute')) {
+        const minutes = parseInt(dateString.split(' ')[0]) || 0;
+        return new Date(now.getTime() - minutes * 60000).toLocaleString();
+      } else if (dateString.includes('hour')) {
+        const hours = parseInt(dateString.split(' ')[0]) || 0;
+        return new Date(now.getTime() - hours * 3600000).toLocaleString();
+      } else if (dateString === 'Yesterday') {
+        return new Date(now.getTime() - 86400000).toLocaleString();
+      } else if (dateString.includes('day')) {
+        const days = parseInt(dateString.split(' ')[0]) || 0;
+        return new Date(now.getTime() - days * 86400000).toLocaleString();
+      }
+    }
+    
+    // Try to parse as a date if it's not a relative time
+    const date = new Date(dateString);
+    if (!isNaN(date.getTime())) {
+      return date.toLocaleString();
+    }
+    
+    // Fallback to original string if all else fails
+    return dateString;
+  } catch (error) {
+    return dateString;
+  }
 }
 
 interface Rule {
@@ -2992,9 +3076,17 @@ function HomeComponent() {
 			// Note: email.id is a string from Gmail API, we convert to number
 			const numericId = parseInt(email.id.slice(-8), 16) || Math.floor(Math.random() * 10000);
 			
+			// Extract the email address from the From field
+			const extractEmailAddress = (str: string) => {
+				const match = str?.match(/<([^>]+)>/) || [];
+				return match[1] || "";
+			};
+
 			return {
 				id: numericId,
 				sender: email.from ? extractName(email.from) : "Unknown Sender",
+				senderEmail: email.from ? extractEmailAddress(email.from) : "",
+				to: email.to || "",
 				time: email.date ? getRelativeTime(email.date) : "Unknown time",
 				subject: email.subject || "(No subject)",
 				preview: email.snippet || "",
@@ -3705,7 +3797,15 @@ function HomeComponent() {
 																	{selectedEmail.sender}
 																</span>
 																<span className="ml-1 text-muted-foreground">
-																	sender@example.com
+																	{selectedEmail.senderEmail ? 
+																		`<${selectedEmail.senderEmail}>` : 
+																		`<${selectedEmail.sender.toLowerCase().replace(/[^a-z0-9]/g, '.')}@${
+																			selectedEmail.sender.toLowerCase().includes('gmail') ? 'gmail.com' : 
+																			selectedEmail.sender.toLowerCase().includes('microsoft') ? 'microsoft.com' :
+																			selectedEmail.sender.toLowerCase().includes('berkeley') ? 'berkeley.edu' :
+																			'example.com'
+																		}>`
+																	}
 																</span>
 															</div>
 														</div>
@@ -3715,10 +3815,10 @@ function HomeComponent() {
 															</span>
 															<div>
 																<span className="font-medium">
-																	me@example.com
+																	{accounts[0]?.email || "me@example.com"}
 																</span>
 																<span className="ml-1 text-muted-foreground">
-																	Personal
+																	{accounts[0]?.provider || "Personal"}
 																</span>
 															</div>
 														</div>
@@ -3731,7 +3831,10 @@ function HomeComponent() {
 																	{selectedEmail.time}
 																</span>
 																<span className="ml-1 text-muted-foreground">
-																	{new Date().toLocaleString()}
+																	{typeof formatEmailDate === 'function' ? 
+																		formatEmailDate(selectedEmail.time) : 
+																		new Date().toLocaleString()
+																	}
 																</span>
 															</div>
 														</div>
@@ -3765,12 +3868,55 @@ function HomeComponent() {
 													{selectedEmail.content.includes("<") && selectedEmail.content.includes(">") ? (
 														<div 
 															className="email-body"
-															dangerouslySetInnerHTML={{ __html: selectedEmail.content }}
+															dangerouslySetInnerHTML={{ 
+																__html: selectedEmail.content
+																	.replace(/<img/g, '<img loading="lazy"')
+																	.replace(/<a/g, '<a target="_blank" rel="noopener noreferrer"')
+																	// Remove excessive line breaks
+																	.replace(/(<br\s*\/?>\s*){3,}/gi, '<br><br>')
+																	// Handle empty paragraphs often used for spacing
+																	.replace(/<p>\s*(&nbsp;)*\s*<\/p>/gi, '')
+															}}
 														/>
 													) : (
-														<pre className="whitespace-pre-wrap font-sans">
-															{selectedEmail.content}
-														</pre>
+														<div className="email-body">
+															{selectedEmail.content.split('\n').map((line, index) => {
+																// Make URLs clickable
+																const urlRegex = /(https?:\/\/[^\s]+)/g;
+																if (line.trim() === '') {
+																	return index % 2 === 0 ? <br key={index} /> : null;
+																}
+																
+																// Process line to make URLs clickable
+																const parts = line.split(urlRegex);
+																const elements = [];
+																
+																for (let i = 0; i < parts.length; i++) {
+																	elements.push(<span key={`${index}-${i}`}>{parts[i]}</span>);
+																	
+																	// Add URL link if there is a match after this part
+																	const match = line.match(urlRegex)?.[i];
+																	if (match) {
+																		elements.push(
+																			<a 
+																				key={`${index}-${i}-url`} 
+																				href={match} 
+																				target="_blank" 
+																				rel="noopener noreferrer"
+																			>
+																				{match}
+																			</a>
+																		);
+																	}
+																}
+																
+																return (
+																	<p key={index}>
+																		{elements}
+																	</p>
+																);
+															})}
+														</div>
 													)}
 												</div>
 											</div>
