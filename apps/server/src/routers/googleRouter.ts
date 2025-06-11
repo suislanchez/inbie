@@ -83,15 +83,7 @@ export const googleRouter = router({
           input.maxResults
         )
         
-        console.log(`Retrieved ${emails.length} emails`)
-        if (emails.length > 0) {
-          console.log("First email:", {
-            id: emails[0].id,
-            subject: emails[0].subject,
-            from: emails[0].from
-          })
-        }
-        
+  
         return { emails }
       } catch (error) {
         console.error("Error fetching emails:", error)

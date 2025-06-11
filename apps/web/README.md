@@ -68,3 +68,71 @@ bun run dev
 - TRPC for type-safe API calls
 - Radix UI + Tailwind CSS for UI components
 - Google OAuth 2.0 and Gmail API 
+
+# Inbox Flux Web App
+
+## Features
+
+- Email management with Gmail integration
+- AI-powered email categorization
+- Rule-based email processing
+- Email analytics
+- AI draft generation for emails
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js (v16 or higher)
+- pnpm (v7 or higher)
+- OpenAI API Key (for AI features)
+
+### Installation
+
+1. Clone the repository
+2. Navigate to the project directory
+3. Install dependencies:
+
+```bash
+pnpm install
+```
+
+4. Set up environment variables:
+
+There are two ways to set up your OpenAI API key:
+
+**Option 1: Using a `.env.local` file**
+
+Create a `.env.local` file in the `apps/web` directory with the following content:
+
+```
+# OpenAI API key for generating email drafts
+VITE_OPENAI_API_KEY=your_openai_api_key_here
+```
+
+**Option 2: Using Node.js environment variables**
+
+If you're running the app in a Node.js environment, you can also set the following environment variable:
+
+```
+OPENAI_API_KEY=your_openai_api_key_here
+```
+
+You can get your OpenAI API key from: https://platform.openai.com/account/api-keys
+
+5. Start the development server:
+
+```bash
+pnpm dev
+```
+
+## AI Draft Generation
+
+The app includes AI-powered draft generation for emails. This feature uses the OpenAI API to generate appropriate responses to emails.
+
+To use this feature:
+1. Ensure you have set up your OpenAI API key in the `.env.local` file
+2. Select an email in the inbox
+3. Click the "Generate AI Draft Reply" button
+4. You can provide optional instructions to customize the generated draft
+5. Use the generated draft as-is or edit it before sending 

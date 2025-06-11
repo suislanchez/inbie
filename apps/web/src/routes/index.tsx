@@ -24,18 +24,21 @@ import {
 	Settings,
 	Shield,
 	SlidersHorizontal,
+	Sparkles,
 	Star,
 	Trash2,
 	Users,
 	X,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+import type { ChangeEvent } from "react";
 
 import { useTheme } from "@/components/theme-provider";
 import { GoogleAuth } from "@/components/google-auth";
 import { EmailList, type EmailListRef } from "@/components/email-list";
 import { debugEvents } from "@/components/debug-overlay";
 import { fetchGmailEmails, type GmailEmail } from "@/lib/email-api";
+import { generateEmailDraft, type EmailData } from "@/lib/ai-draft";
 
 // CSS for email body rendering
 const emailStyles = `
@@ -2655,6 +2658,13 @@ function HomeComponent() {
 	const [showNewFolderModal, setShowNewFolderModal] = useState(false);
 	const [sortBy, setSortBy] = useState<SortOption>("date");
 	const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+	
+	// Draft generation states
+	const [generatedDraft, setGeneratedDraft] = useState<string>("");
+	const [isDraftGenerating, setIsDraftGenerating] = useState(false);
+	const [draftError, setDraftError] = useState<string | null>(null);
+	const [draftInstructions, setDraftInstructions] = useState<string>("");
+	
 	const [customFolders, setCustomFolders] = useState([
 		{ id: 1, name: "AI Generated", type: "ai-generated" },
 		{ id: 2, name: "Follow-ups", type: "followups" },
@@ -2748,6 +2758,98 @@ function HomeComponent() {
 
 	const handleEmailClick = (email: Email) => {
 		setSelectedEmail(email);
+		// Reset draft states when selecting a new email
+		setGeneratedDraft("");
+		setDraftError(null);
+		setIsDraftGenerating(false);
+		setDraftInstructions("");
+	};
+	
+	// Function to generate draft reply using OpenAI
+	const handleGenerateDraft = async () => {
+		if (!selectedEmail) return;
+		
+		setIsDraftGenerating(true);
+		setDraftError(null);
+		
+		// Log attempt to debug overlay
+		debugEvents.addEntry("=== AI Draft Generation Started ===", "info");
+		debugEvents.addEntry(`Generating draft for email: ${selectedEmail.id} - ${selectedEmail.subject}`, "info");
+		
+		try {
+			// Log environment check
+			debugEvents.addEntry("Checking for OpenAI API key...", "info");
+			if (typeof process !== 'undefined' && process.env) {
+				const hasNodeEnvKey = !!process.env.OPENAI_API_KEY;
+				debugEvents.addEntry(`- Node.js OPENAI_API_KEY: ${hasNodeEnvKey ? "Found" : "Not found"}`, hasNodeEnvKey ? "success" : "warning");
+			} else {
+				debugEvents.addEntry("- Node.js environment variables not available in browser context", "warning");
+			}
+			
+			if (import.meta.env) {
+				const hasViteEnvKey = !!import.meta.env.VITE_OPENAI_API_KEY;
+				debugEvents.addEntry(`- Vite VITE_OPENAI_API_KEY: ${hasViteEnvKey ? "Found" : "Not found"}`, hasViteEnvKey ? "success" : "warning");
+			} else {
+				debugEvents.addEntry("- Vite environment variables not available", "warning");
+			}
+			
+			const emailData: EmailData = {
+				sender: selectedEmail.sender,
+				subject: selectedEmail.subject,
+				content: selectedEmail.content,
+				time: selectedEmail.time
+			};
+			
+			debugEvents.addEntry("Calling OpenAI API...", "info");
+			const result = await generateEmailDraft(emailData, draftInstructions);
+			
+			if (result.success) {
+				debugEvents.addEntry("Successfully generated draft!", "success");
+				debugEvents.addEntry(`Draft length: ${result.draft.length} characters`, "info");
+				
+				setGeneratedDraft(result.draft);
+				
+				// Update the email object to show it has an AI draft
+				const updatedEmail = {
+					...selectedEmail,
+					hasAIDraft: true,
+					aiDraft: result.draft
+				};
+				setSelectedEmail(updatedEmail);
+				
+				// Also update the email in the appropriate folder
+				const allEmails = getAllEmails();
+				const updatedEmails = allEmails.map(email => 
+					email.id === selectedEmail.id ? updatedEmail : email
+				);
+				
+				// Update local storage with updated emails
+				localStorage.setItem("inboxFluxEmails", JSON.stringify(updatedEmails));
+				debugEvents.addEntry("Updated email in storage", "success");
+			} else {
+				debugEvents.addEntry("Failed to generate draft", "error");
+				debugEvents.addEntry(`Error: ${result.error || "Unknown error"}`, "error");
+				setDraftError(result.error || "Failed to generate draft");
+			}
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+			console.error("Error generating draft:", error);
+			debugEvents.addEntry("Exception occurred during draft generation:", "error");
+			debugEvents.addEntry(errorMessage, "error");
+			
+			if (error instanceof Error && error.stack) {
+				debugEvents.addEntry("Stack trace:", "info");
+				const stackLines = error.stack.split('\n');
+				stackLines.forEach(line => {
+					debugEvents.addEntry(`  ${line}`, "info");
+				});
+			}
+			
+			setDraftError(errorMessage);
+		} finally {
+			setIsDraftGenerating(false);
+			debugEvents.addEntry("=== AI Draft Generation Completed ===", "info");
+		}
 	};
 
 	const getAllEmails = () => {
@@ -3314,7 +3416,7 @@ function HomeComponent() {
 					<div className="mb-4 flex items-center gap-3">
 						<div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg">
 							<img
-								src={theme === "dark" ? "/logo_dark.png" : "/logo_light.png"}
+								src={theme === "dark" ? "/logo.png" : "/logo.png"}
 								alt="InboxFlux Logo"
 								className="h-12 w-12 object-contain"
 								width={48}
@@ -3864,7 +3966,7 @@ function HomeComponent() {
 														</div>
 													</div>
 												</div>
-												<div className="prose prose-sm max-w-none text-sm">
+												<div className="prose prose-sm max-w-none text-sm relative">
 													{selectedEmail.content.includes("<") && selectedEmail.content.includes(">") ? (
 														<div 
 															className="email-body"
@@ -3918,26 +4020,62 @@ function HomeComponent() {
 															})}
 														</div>
 													)}
+													
+													{/* Persistent AI Draft Button (Bottom Left) */}
+													<div className="absolute bottom-4 left-4 z-10">
+													
+													</div>
+												</div>
+												
+												{/* Generate Draft Button (Center) */}
+												<div className="mt-4 flex justify-left">
+													<button
+														onClick={handleGenerateDraft}
+														disabled={isDraftGenerating}
+														className="inline-flex items-left gap-1.5 rounded-md bg-primary px-6 py-2 text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+													>
+														{isDraftGenerating ? (
+															<>
+																<RefreshCw className="h-5 w-5 animate-spin" />
+																Generating...
+															</>
+														) : (
+															<>
+																<Sparkles className="h-5 w-5" />
+																Generate AI Draft Reply
+															</>
+														)}
+													</button>
 												</div>
 											</div>
 
 											{/* AI Draft */}
-											{selectedEmail.hasAIDraft && (
+											{(selectedEmail.hasAIDraft || generatedDraft) && (
 												<div className="rounded-lg border bg-card p-4">
 													<div className="mb-4 flex items-center justify-between">
 														<h3 className="font-semibold text-sm">
-															Prepared Draft
+															{isDraftGenerating ? "Generating Draft..." : "AI Draft Reply"}
 														</h3>
 														<div className="flex items-center gap-2">
-															<button className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-primary-foreground text-xs hover:bg-primary/90">
+															<button 
+																className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-primary-foreground text-xs hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+																disabled={isDraftGenerating || !selectedEmail.hasAIDraft}
+															>
 																<CheckCircle className="h-3.5 w-3.5" />
 																Use Draft
 															</button>
-															<button className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs hover:bg-accent">
+															<button 
+																className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+																onClick={handleGenerateDraft}
+																disabled={isDraftGenerating}
+															>
 																<RefreshCw className="h-3.5 w-3.5" />
 																Regenerate
 															</button>
-															<button className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs hover:bg-accent">
+															<button 
+																className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+																disabled={isDraftGenerating || !selectedEmail.hasAIDraft}
+															>
 																<Send className="h-3.5 w-3.5" />
 																Send as is
 															</button>
@@ -3948,12 +4086,74 @@ function HomeComponent() {
 															className="w-full rounded-md border p-2 text-sm"
 															rows={4}
 															placeholder="Enter instructions for regenerating the draft..."
+															value={draftInstructions}
+															onChange={(e) => setDraftInstructions(e.target.value)}
+															disabled={isDraftGenerating}
 														/>
 													</div>
+													
+													{draftError ? (
+														<div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-600 text-sm">
+															<div className="flex justify-between items-start">
+																<div>
+																	<p className="font-medium">Error generating draft:</p>
+																	<p>{draftError}</p>
+																</div>
+																<button 
+																	onClick={() => {
+																		// Show debug overlay
+																		if (typeof window !== 'undefined' && window.document) {
+																			const debugElement = window.document.getElementById('debug-overlay');
+																			if (debugElement) {
+																				debugElement.style.display = 'block';
+																			}
+																		}
+																	}}
+																	className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-100 hover:bg-red-200 text-xs font-medium"
+																>
+																	<AlertCircle className="h-3 w-3" />
+																	Show Debug
+																</button>
+															</div>
+															<p className="mt-2 text-xs">
+																API key has been hardcoded for this demo.
+															</p>
+														</div>
+													) : selectedEmail.hasAIDraft && !isDraftGenerating && (
+														<div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md text-green-600 text-sm">
+															<div className="flex items-center">
+																<CheckCircle className="h-4 w-4 mr-2" />
+																<p className="font-medium">Draft generated successfully!</p>
+															</div>
+															<p className="mt-1 text-xs">
+																Using GPT-4o model for high-quality response drafting.
+															</p>
+														</div>
+													)}
+													
 													<div className="prose prose-sm max-w-none text-sm">
-														<pre className="whitespace-pre-wrap font-sans">
-															{selectedEmail.aiDraft}
-														</pre>
+														{isDraftGenerating ? (
+															<div className="flex items-center justify-center p-4">
+																<RefreshCw className="h-5 w-5 animate-spin mr-2" />
+																<span>Generating draft response...</span>
+															</div>
+														) : (
+															<textarea
+																value={selectedEmail.aiDraft || generatedDraft}
+																onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
+																	if (selectedEmail) {
+																		const updatedEmail = {
+																			...selectedEmail,
+																			aiDraft: e.target.value
+																		}
+																		setSelectedEmail(updatedEmail)
+																	}
+																	setGeneratedDraft(e.target.value)
+																}}
+																className="w-full min-h-[200px] p-3 rounded-md border bg-background font-sans text-sm resize-y focus:outline-none focus:ring-2 focus:ring-primary/20"
+																placeholder="AI draft will appear here..."
+															/>
+														)}
 													</div>
 												</div>
 											)}
