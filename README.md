@@ -1,4 +1,4 @@
-# 📨 **Inbie**  
+# **Inbie**  
 ### Your inbox, ready before you wake.
 
 This is my latest productivity hack:  
@@ -6,7 +6,7 @@ An **RAG-powered AI email assistant** named **Inby** that sorts, labels, and dra
 
 ---
 
-## ⚙️What Inby Does
+## ⚙What Inbie Does
 
 - Sorts and **categorizes your emails** by what needs a reply and what doesn't
 - **Drafts personalized responses** using your tone and preferences
@@ -36,9 +36,9 @@ An **RAG-powered AI email assistant** named **Inby** that sorts, labels, and dra
 1. Clone the repo  
 2. Install dependencies:
 
-```bash
- bun install
-3.	Set up Google OAuth:
+
+bun install
+3. Set up Google OAuth:
 
 In your .env:
 GOOGLE_CLIENT_ID=your-client-id
@@ -50,7 +50,7 @@ The web app runs at http://localhost:3001
 The API runs at http://localhost:3000
 
 login to google, allow yourself in google cloud under allowed emails for dev, and enable scopes
-💬 FAQ
+##FAQ
 
 Why is it called Inbie?
 
