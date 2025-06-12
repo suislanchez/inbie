@@ -6,7 +6,7 @@ An **RAG-powered AI email assistant** named **Inby** that sorts, labels, and dra
 
 ---
 
-## ⚙What Inbie Does
+##What Inbie Does
 
 - Sorts and **categorizes your emails** by what needs a reply and what doesn't
 - **Drafts personalized responses** using your tone and preferences
