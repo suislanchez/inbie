@@ -1,90 +1,27 @@
-# inbox-flo
+Your inbox, ready before you wake.
 
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines React, TanStack Router, Hono, TRPC, and more.
-
-## Features
-
-- **TypeScript** - For type safety and improved developer experience
-- **TanStack Router** - File-based routing with full type safety
-- **React Native** - Build mobile apps using React
-- **Expo** - Tools for React Native development
-- **TailwindCSS** - Utility-first CSS for rapid UI development
-- **shadcn/ui** - Reusable UI components
-- **Hono** - Lightweight, performant server framework
-- **tRPC** - End-to-end type-safe APIs
-- **Bun** - Runtime environment
-- **Drizzle** - TypeScript-first ORM
-- **SQLite/Turso** - Database engine
-- **Authentication** - Email & password authentication with Better Auth
-- **PWA** - Progressive Web App support
-- **Biome** - Linting and formatting
-- **Husky** - Git hooks for code quality
-- **Tauri** - Build native desktop applications
-- **Starlight** - Documentation site with Astro
-- **Turborepo** - Optimized monorepo build system
-
-## Getting Started
-
-First, install the dependencies:
-
-```bash
-bun install
-```
-## Database Setup
-
-This project uses SQLite with Drizzle ORM.
-
-1. Start the local SQLite database:
-```bash
-cd apps/server && bun db:local
-```
-
-2. Update your `.env` file in the `apps/server` directory with the appropriate connection details if needed.
-
-3. Apply the schema to your database:
-```bash
-bun db:push
-```
+This is my latest productivity hack:
+an RAG AI Agent email assistant that sorts, labels, and drafts replies automatically, so you wake up to a fully organized inbox with drafts and tempalates ready to go. 
+	•	Built with a custom RAG AI agent using mastra_ai Typescript framework
+	•	Labels what needs replying, drafts smart responses, and lets you approve or ignore
+	•	Fully customizable rules per user
+	•	Periodically updates and saves everything locally using Turso + Drizzle
+ 	•	API routing with tRPC and Hono servers
+  •	OpenAI and Claude models, Gmail API + Google OAuth 
 
 
-Then, run the development server:
+![inbox-flux-demo2-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/9ca9b9ab-db4f-4496-8fbd-4935f7768c3e)
 
-```bash
-bun dev
-```
-
-Open [http://localhost:3001](http://localhost:3001) in your browser to see the web application.
-Use the Expo Go app to run the mobile application.
-
-The API is running at [http://localhost:3000](http://localhost:3000).
+Full Stack: 
+React + TanStack Router + tRPC + Hono + Bun + SQLite + NativeWind + Expo
 
 
+I’m testing out ideas and directions.
+Would you use something like this to clean your inbox for you?
+Let me know how you’d improve it or what features you’d want next.
 
-## Project Structure
+to test it out:
 
-```
-inbox-flo/
-├── apps/
-│   ├── web/         # Frontend application (React + TanStack Router)
-│   ├── native/      # Mobile application (React Native, Expo)
-│   ├── docs/        # Documentation site (Astro Starlight)
-│   └── server/      # Backend API (Hono, TRPC)
-```
+run bun dev in root, and setup google oauth permissions and env variables for GOOGLE_CLIENT_ID AND GOOGLE_CLIENT_SECRET. VITE_URL and tRPC -> Hono servers setup automatically.
 
-## Available Scripts
-
-- `bun dev`: Start all applications in development mode
-- `bun build`: Build all applications
-- `bun dev:web`: Start only the web application
-- `bun dev:server`: Start only the server
-- `bun check-types`: Check TypeScript types across all apps
-- `bun dev:native`: Start the React Native/Expo development server
-- `bun db:push`: Push schema changes to database
-- `bun db:studio`: Open database studio UI
-- `cd apps/server && bun db:local`: Start the local SQLite database
-- `bun check`: Run Biome formatting and linting
-- `cd apps/web && bun generate-pwa-assets`: Generate PWA assets
-- `cd apps/web && bun desktop:dev`: Start Tauri desktop app in development
-- `cd apps/web && bun desktop:build`: Build Tauri desktop app
-- `cd apps/docs && bun dev`: Start documentation site
-- `cd apps/docs && bun build`: Build documentation site
+contact me for help if needed 
