@@ -225,6 +225,7 @@ interface Email {
 	sender: string;
 	senderEmail?: string; // Optional field for sender's email address
 	to?: string; // Optional field for recipient's email address
+	date?: string; // ISO date string for sorting and display
 	time: string;
 	subject: string;
 	preview: string;
@@ -272,6 +273,14 @@ function formatEmailDate(dateString: string) {
   } catch (error) {
     return dateString;
   }
+}
+
+// Add helper to display time if email date is today, otherwise show date
+function displayEmailDate(dateString: string) {
+  const date = new Date(dateString)
+  const now = new Date()
+  if (date.toDateString() === now.toDateString()) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return date.toLocaleDateString()
 }
 
 interface Rule {
@@ -2904,49 +2913,32 @@ function HomeComponent() {
 	};
 
 	// Update sorting function for more accurate sorting
+	const getComparableTime = (email: Email): number => {
+		const now = Date.now()
+		if (email.date) return new Date(email.date).getTime()
+		const minutesMatch = email.time.match(/^(\d+)\s+minute/)
+		if (minutesMatch) return now - parseInt(minutesMatch[1]) * 60000
+		const hoursMatch = email.time.match(/^(\d+)\s+hour/)
+		if (hoursMatch) return now - parseInt(hoursMatch[1]) * 3600000
+		if (email.time === "Yesterday") return now - 24 * 3600000
+		const daysMatch = email.time.match(/^(\d+)\s+day/)
+		if (daysMatch) return now - parseInt(daysMatch[1]) * 24 * 3600000
+		return 0
+	}
+
 	const getSortedEmails = (emails: Email[]) => {
 		return [...emails].sort((a, b) => {
-			// Helper function to convert time string to comparable value
-			const getTimeValue = (time: string): number => {
-				if (time.includes("hour")) {
-					const hours = Number.parseInt(time.split(" ")[0]) || 0;
-					return hours;
-				}
-				if (time === "Yesterday") return 24;
-				if (time.includes("day")) {
-					const days = Number.parseInt(time.split(" ")[0]) || 0;
-					return days * 24;
-				}
-				return 999; // For any other format
-			};
-
+			const priorityOrder = { High: 3, Medium: 2, Low: 1 }
 			if (sortBy === "priority") {
-				// First sort by priority
-				const priorityOrder = { High: 3, Medium: 2, Low: 1 };
-				const priorityA =
-					priorityOrder[a.analytics.priority as keyof typeof priorityOrder] ||
-					0;
-				const priorityB =
-					priorityOrder[b.analytics.priority as keyof typeof priorityOrder] ||
-					0;
-
-				if (priorityA !== priorityB) {
-					return sortDirection === "desc"
-						? priorityB - priorityA
-						: priorityA - priorityB;
-				}
-
-				// If priorities are equal, sort by date
-				const timeA = getTimeValue(a.time);
-				const timeB = getTimeValue(b.time);
-				return sortDirection === "desc" ? timeA - timeB : timeB - timeA;
+				const prioA = priorityOrder[a.analytics.priority as keyof typeof priorityOrder] ?? 0
+				const prioB = priorityOrder[b.analytics.priority as keyof typeof priorityOrder] ?? 0
+				if (prioA !== prioB) return sortDirection === "desc" ? prioB - prioA : prioA - prioB
 			}
-			// Sort by date only
-			const timeA = getTimeValue(a.time);
-			const timeB = getTimeValue(b.time);
-			return sortDirection === "desc" ? timeA - timeB : timeB - timeA;
-		});
-	};
+			const timeA = getComparableTime(a)
+			const timeB = getComparableTime(b)
+			return sortDirection === "desc" ? timeB - timeA : timeA - timeB
+		})
+	}
 
 	const handleSort = (option: SortOption) => {
 		if (sortBy === option) {
@@ -3190,6 +3182,7 @@ function HomeComponent() {
 				sender: email.from ? extractName(email.from) : "Unknown Sender",
 				senderEmail: email.from ? extractEmailAddress(email.from) : "",
 				to: email.to || "",
+				date: email.date,
 				time: email.date ? getRelativeTime(email.date) : "Unknown time",
 				subject: email.subject || "(No subject)",
 				preview: email.snippet || "",
@@ -3944,7 +3937,7 @@ function HomeComponent() {
 															</span>
 														</div>
 														<span className="text-muted-foreground text-sm">
-															{email.time}
+															{email.date ? displayEmailDate(email.date) : email.time}
 														</span>
 													</div>
 													<div className="mt-1 font-medium text-sm">
@@ -4041,17 +4034,9 @@ function HomeComponent() {
 															<span className="w-12 font-medium text-muted-foreground">
 																Date:
 															</span>
-															<div>
-																<span className="font-medium">
-																	{selectedEmail.time}
-																</span>
-																<span className="ml-1 text-muted-foreground">
-																	{typeof formatEmailDate === 'function' ? 
-																		formatEmailDate(selectedEmail.time) : 
-																		new Date().toLocaleString()
-																	}
-																</span>
-															</div>
+															<span className="font-medium">
+																{selectedEmail.date ? displayEmailDate(selectedEmail.date) : selectedEmail.time}
+															</span>
 														</div>
 														<div className="flex items-center gap-2">
 															<span className="w-12 font-medium text-muted-foreground">

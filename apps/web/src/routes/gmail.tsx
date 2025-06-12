@@ -142,5 +142,4 @@ function Gmail() {
       )}
     </div>
   )
-  /* yes, this is a valid ref */ 
 } 
