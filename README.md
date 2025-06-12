@@ -37,4 +37,42 @@ An **RAG-powered AI email assistant** named **Inby** that sorts, labels, and dra
 2. Install dependencies:
 
 ```bash
-bun install
+ bun install
+3.	Set up Google OAuth:
+
+In your .env:
+GOOGLE_CLIENT_ID=your-client-id
+GOOGLE_CLIENT_SECRET=your-client-secret
+VITE_URL=http://localhost:3000
+####4.	Start the dev server:
+
+The web app runs at http://localhost:3001
+The API runs at http://localhost:3000
+
+login to google, allow yourself in google cloud under allowed emails for dev, and enable scopes
+💬 FAQ
+
+Why is it called Inbie?
+
+“Inbie” is short for Inbox + AI buddy. It’s your inbox’s new best friend — fast, friendly, and always working while you sleep.
+
+Is it open source?
+
+Yes, feel free to fork, remix, and build your own AI-powered email assistant.
+
+How often does it run?
+
+It checks for new emails and updates your drafts periodically using server-side jobs (configurable). You can also trigger it manually.
+
+How customizable is it?
+
+You can define rules like:
+	•	Only reply to academic emails
+	•	Use casual tone on weekends
+	•	Auto-draft intros for career mail
+
+The rules engine is JSON-configurable per user.
+
+Can I use a different AI model?
+
+Yes — the agent is built using mastra_ai, so you can switch between Claude, GPT-4, or even local LLMs.
