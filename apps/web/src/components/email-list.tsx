@@ -8,6 +8,8 @@ import { debugEvents } from "./debug-overlay"
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar"
 import { Badge } from "./ui/badge"
 import { Card } from "./ui/card"
+import { toast } from "sonner"
+import { processEmailWithAI } from "../lib/ai-email-processor"
 import { 
   Mail, 
   Star, 
@@ -24,7 +26,10 @@ import {
   Receipt,
   MessageSquare,
   ShoppingBag,
-  Newspaper
+  Newspaper,
+  Sparkles,
+  Bot,
+  Loader2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -215,6 +220,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
     const [activeTab, setActiveTab] = useState("list")
     const [selectedLabel, setSelectedLabel] = useState<string>("inbox")
     const [labelCounts, setLabelCounts] = useState<Record<string, number>>({})
+    const [processingEmails, setProcessingEmails] = useState<Set<string>>(new Set())
 
     // Debug when component receives tokens
     useEffect(() => {
@@ -586,6 +592,61 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
       setLabelCounts(counts)
     }
 
+    const handleAIProcess = async (email: Email, event: React.MouseEvent) => {
+      event.stopPropagation() // Prevent triggering email selection
+      
+      if (processingEmails.has(email.id)) {
+        return // Already processing
+      }
+
+      setProcessingEmails(prev => new Set(prev).add(email.id))
+      
+      try {
+        toast.info("Processing email with AI...", {
+          description: `Analyzing "${email.subject}" for categorization and replies`
+        })
+
+        const result = await processEmailWithAI(
+          {
+            id: email.id,
+            threadId: email.threadId,
+            subject: email.subject,
+            from: email.from,
+            body: email.body || email.snippet,
+            date: email.date,
+          },
+          {
+            accessToken,
+            refreshToken,
+            openaiApiKey: '' // API key will be retrieved from server environment
+          }
+        )
+
+        toast.success("AI processing completed!", {
+          description: `Suggested ${result.suggestedLabels.length} labels. ${result.needsReply ? 'Reply draft created.' : 'No reply needed.'}`
+        })
+
+        debugEvents.addEntry(`AI processed email: ${email.subject}`, "success")
+        debugEvents.addEntry(`Suggested labels: ${result.suggestedLabels.join(", ")}`, "info")
+        debugEvents.addEntry(`Needs reply: ${result.needsReply}`, "info")
+        debugEvents.addEntry(`Confidence: ${result.confidence}`, "info")
+
+      } catch (error) {
+        toast.error("AI processing failed", {
+          description: error instanceof Error ? error.message : "Unknown error occurred"
+        })
+        
+        debugEvents.addEntry(`AI processing failed for: ${email.subject}`, "error")
+        debugEvents.addEntry(`Error: ${error instanceof Error ? error.message : "Unknown error"}`, "error")
+      } finally {
+        setProcessingEmails(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(email.id)
+          return newSet
+        })
+      }
+    }
+
     return (
       <div className="w-full max-w-6xl mx-auto h-[calc(100vh-4rem)] flex">
         {/* Sidebar */}
@@ -684,9 +745,25 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
                                 </p>
                               </div>
                               <div className="flex flex-col items-end gap-1">
-                                <span className="text-xs text-gray-500 whitespace-nowrap">
-                                  {getRelativeTime(email.date)}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => handleAIProcess(email, e)}
+                                    disabled={processingEmails.has(email.id)}
+                                    className="h-8 w-8 p-0 hover:bg-purple-50"
+                                    title="Process with AI"
+                                  >
+                                    {processingEmails.has(email.id) ? (
+                                      <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
+                                    ) : (
+                                      <Sparkles className="h-4 w-4 text-purple-600" />
+                                    )}
+                                  </Button>
+                                  <span className="text-xs text-gray-500 whitespace-nowrap">
+                                    {getRelativeTime(email.date)}
+                                  </span>
+                                </div>
                                 {hasAttachments(email) && (
                                   <Paperclip className="h-4 w-4 text-gray-400" />
                                 )}

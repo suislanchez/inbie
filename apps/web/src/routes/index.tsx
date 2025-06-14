@@ -26,6 +26,7 @@ import {
 	SlidersHorizontal,
 	Sparkles,
 	Star,
+	Tag,
 	Trash2,
 	Users,
 	X,
@@ -41,6 +42,7 @@ import { EmailList, type EmailListRef } from "../components/email-list";
 import { debugEvents } from "@/components/debug-overlay";
 import { fetchGmailEmails, type GmailEmail } from "@/lib/email-api";
 import { generateEmailDraft, type EmailData } from "@/lib/ai-draft";
+import { processEmailWithAI } from '../lib/ai-email-processor'
 
 // CSS for email body rendering
 const emailStyles = `
@@ -3512,6 +3514,81 @@ function HomeComponent() {
 		}
 	})
 
+	// Add this after line 2781 (after handleGenerateDraft function)
+
+	// Add state for AI processing
+	const [processingEmails, setProcessingEmails] = useState<Set<number>>(new Set())
+	const [processedEmails, setProcessedEmails] = useState<Map<number, any>>(new Map())
+
+	// AI Email Processing Function
+	const handleAIProcess = async (email: Email) => {
+		if (!googleTokens?.access_token) {
+			debugEvents.addEntry("No access token available for AI processing", "error")
+			return
+		}
+
+		const openaiApiKey = localStorage.getItem('openai_api_key')
+		if (!openaiApiKey) {
+			debugEvents.addEntry("OpenAI API key not found. Please set it in settings.", "error")
+			return
+		}
+
+		setProcessingEmails(prev => new Set(prev).add(email.id))
+		debugEvents.addEntry(`Starting AI processing for email: ${email.subject}`, "info")
+
+		try {
+			// Convert your Email interface to GmailEmail format
+			const gmailEmail = {
+				id: email.threadId || email.id.toString(),
+				threadId: email.threadId || email.id.toString(),
+				subject: email.subject,
+				from: email.senderEmail || email.sender,
+				body: email.content,
+				snippet: email.preview,
+				date: email.date || email.time,
+			}
+
+			const result = await processEmailWithAI(gmailEmail, {
+				accessToken: googleTokens.access_token,
+				refreshToken: googleTokens.refresh_token,
+				openaiApiKey,
+			})
+
+			debugEvents.addEntry(`AI processing completed for email: ${email.subject}`, "success")
+			debugEvents.addEntry(`Suggested labels: ${result.suggestedLabels.join(', ')}`, "info")
+			debugEvents.addEntry(`Needs reply: ${result.needsReply}`, "info")
+			debugEvents.addEntry(`Confidence: ${Math.round(result.confidence * 100)}%`, "info")
+
+			// Update the processed emails state
+			setProcessedEmails(prev => new Map(prev).set(email.id, result))
+
+			// Update the email with AI processing results
+			const updatedEmail = {
+				...email,
+				badges: [...email.badges, ...result.suggestedLabels.map(label => `AI: ${label}`)],
+				hasAIDraft: result.needsReply,
+				aiDraft: result.replyDraft || email.aiDraft,
+			}
+
+			// Update the email in storage
+			const allEmails = getAllEmails()
+			const updatedEmails = allEmails.map(e => 
+				e.id === email.id ? updatedEmail : e
+			)
+			localStorage.setItem("inboxFluxEmails", JSON.stringify(updatedEmails))
+
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : "Unknown error"
+			debugEvents.addEntry(`AI processing failed: ${errorMessage}`, "error")
+		} finally {
+			setProcessingEmails(prev => {
+				const next = new Set(prev)
+				next.delete(email.id)
+				return next
+			})
+		}
+	}
+
 	return (
 		<div className="flex h-screen bg-background">
 			<EmailStyles />
@@ -4141,6 +4218,27 @@ function HomeComponent() {
 															<>
 																<Sparkles className="h-5 w-5" />
 																Generate AI Draft Reply
+															</>
+														)}
+													</button>
+												</div>
+
+												{/* AI Processing Button */}
+												<div className="mt-2 flex justify-left">
+													<button
+														onClick={() => handleAIProcess(selectedEmail)}
+														disabled={processingEmails.has(selectedEmail.id)}
+														className="inline-flex items-left gap-1.5 rounded-md bg-purple-600 px-6 py-2 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+													>
+														{processingEmails.has(selectedEmail.id) ? (
+															<>
+																<RefreshCw className="h-5 w-5 animate-spin" />
+																Processing...
+															</>
+														) : (
+															<>
+																<Tag className="h-5 w-5" />
+																AI Label & Categorize
 															</>
 														)}
 													</button>
