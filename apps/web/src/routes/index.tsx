@@ -3520,73 +3520,255 @@ function HomeComponent() {
 	const [processingEmails, setProcessingEmails] = useState<Set<number>>(new Set())
 	const [processedEmails, setProcessedEmails] = useState<Map<number, any>>(new Map())
 
-	// AI Email Processing Function
+	// AI Email Labeling Function
 	const handleAIProcess = async (email: Email) => {
+		debugEvents.addEntry("=== AI LABELING DEBUG START ===", "info")
+		
+		// Token validation with detailed logging
 		if (!googleTokens?.access_token) {
-			debugEvents.addEntry("No access token available for AI processing", "error")
+			debugEvents.addEntry("❌ No access token available for AI labeling", "error")
+			debugEvents.addEntry(`Google tokens object: ${JSON.stringify(googleTokens)}`, "error")
+			toast.error("Please sign in with Google to use AI labeling")
 			return
 		}
 
-		const openaiApiKey = localStorage.getItem('openai_api_key')
-		if (!openaiApiKey) {
-			debugEvents.addEntry("OpenAI API key not found. Please set it in settings.", "error")
-			return
-		}
+		debugEvents.addEntry("✅ Access token found", "success")
+		debugEvents.addEntry(`Token preview: ${googleTokens.access_token.substring(0, 20)}...`, "info")
+		debugEvents.addEntry(`Token length: ${googleTokens.access_token.length}`, "info")
 
 		setProcessingEmails(prev => new Set(prev).add(email.id))
-		debugEvents.addEntry(`Starting AI processing for email: ${email.subject}`, "info")
+		debugEvents.addEntry(`📧 Starting AI labeling for email: ${email.subject}`, "info")
+		debugEvents.addEntry(`Email ID: ${email.id}`, "info")
+		debugEvents.addEntry(`Thread ID: ${email.threadId}`, "info")
+		debugEvents.addEntry(`Sender: ${email.senderEmail || email.sender}`, "info")
+		
+		toast.info("Analyzing email with AI...", {
+			description: "Getting label suggestions from AI"
+		})
 
 		try {
-			// Convert your Email interface to GmailEmail format
-			const gmailEmail = {
-				id: email.threadId || email.id.toString(),
-				threadId: email.threadId || email.id.toString(),
+			// Step 1: Get user's existing Gmail labels
+			debugEvents.addEntry("📋 Step 1: Fetching user's Gmail labels...", "info")
+			debugEvents.addEntry("Making request to: https://gmail.googleapis.com/gmail/v1/users/me/labels", "info")
+			
+			const startTime = performance.now()
+			const labelsResponse = await fetch(
+				'https://gmail.googleapis.com/gmail/v1/users/me/labels',
+				{
+					headers: {
+						'Authorization': `Bearer ${googleTokens.access_token}`,
+					},
+				}
+			)
+			const endTime = performance.now()
+			
+			debugEvents.addEntry(`📊 Labels API response time: ${(endTime - startTime).toFixed(2)}ms`, "info")
+			debugEvents.addEntry(`📊 Response status: ${labelsResponse.status} ${labelsResponse.statusText}`, "info")
+			debugEvents.addEntry(`📊 Response headers: ${JSON.stringify(Object.fromEntries(labelsResponse.headers.entries()))}`, "info")
+
+			if (!labelsResponse.ok) {
+				debugEvents.addEntry("❌ Labels API request failed", "error")
+				debugEvents.addEntry(`Status: ${labelsResponse.status}`, "error")
+				debugEvents.addEntry(`Status text: ${labelsResponse.statusText}`, "error")
+				
+				// Try to get error response body
+				try {
+					const errorBody = await labelsResponse.text()
+					debugEvents.addEntry(`Error response body: ${errorBody}`, "error")
+				} catch (bodyError) {
+					debugEvents.addEntry(`Could not read error response body: ${bodyError}`, "error")
+				}
+				
+				throw new Error(`Failed to fetch labels: ${labelsResponse.status} ${labelsResponse.statusText}`)
+			}
+
+			debugEvents.addEntry("✅ Labels API request successful", "success")
+			const labelsData = await labelsResponse.json()
+			debugEvents.addEntry(`📊 Raw labels data: ${JSON.stringify(labelsData, null, 2)}`, "info")
+			
+			const existingLabels = labelsData.labels
+				.filter((label: any) => label.type === 'user')
+				.map((label: any) => label.name)
+
+			debugEvents.addEntry(`✅ Found ${existingLabels.length} user labels: ${existingLabels.join(', ')}`, "success")
+
+			// Step 2: Analyze email with AI
+			debugEvents.addEntry("🤖 Step 2: Analyzing email with AI...", "info")
+			debugEvents.addEntry(`API endpoint: /api/analyze-email`, "info")
+			
+			const emailData = {
 				subject: email.subject,
 				from: email.senderEmail || email.sender,
-				body: email.content,
-				snippet: email.preview,
+				content: email.content,
 				date: email.date || email.time,
 			}
-
-			const result = await processEmailWithAI(gmailEmail, {
-				accessToken: googleTokens.access_token,
-				refreshToken: googleTokens.refresh_token,
-				openaiApiKey,
+			
+			debugEvents.addEntry(`📧 Email data for AI: ${JSON.stringify(emailData)}`, "info")
+			debugEvents.addEntry(`📋 Existing labels: ${existingLabels.join(', ')}`, "info")
+			
+			const aiStartTime = performance.now()
+			const analysisResponse = await fetch('/api/analyze-email', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					email: emailData,
+					existingLabels,
+				}),
 			})
+			const aiEndTime = performance.now()
+			
+			debugEvents.addEntry(`📊 AI analysis response time: ${(aiEndTime - aiStartTime).toFixed(2)}ms`, "info")
+			debugEvents.addEntry(`📊 AI response status: ${analysisResponse.status} ${analysisResponse.statusText}`, "info")
 
-			debugEvents.addEntry(`AI processing completed for email: ${email.subject}`, "success")
-			debugEvents.addEntry(`Suggested labels: ${result.suggestedLabels.join(', ')}`, "info")
-			debugEvents.addEntry(`Needs reply: ${result.needsReply}`, "info")
-			debugEvents.addEntry(`Confidence: ${Math.round(result.confidence * 100)}%`, "info")
-
-			// Update the processed emails state
-			setProcessedEmails(prev => new Map(prev).set(email.id, result))
-
-			// Update the email with AI processing results
-			const updatedEmail = {
-				...email,
-				badges: [...email.badges, ...result.suggestedLabels.map(label => `AI: ${label}`)],
-				hasAIDraft: result.needsReply,
-				aiDraft: result.replyDraft || email.aiDraft,
+			if (!analysisResponse.ok) {
+				debugEvents.addEntry("❌ AI analysis request failed", "error")
+				try {
+					const errorBody = await analysisResponse.text()
+					debugEvents.addEntry(`AI error response: ${errorBody}`, "error")
+				} catch (bodyError) {
+					debugEvents.addEntry(`Could not read AI error response: ${bodyError}`, "error")
+				}
+				throw new Error(`Failed to analyze email: ${analysisResponse.status} ${analysisResponse.statusText}`)
 			}
 
-			// Update the email in storage
-			const allEmails = getAllEmails()
-			const updatedEmails = allEmails.map(e => 
-				e.id === email.id ? updatedEmail : e
-			)
-			localStorage.setItem("inboxFluxEmails", JSON.stringify(updatedEmails))
+			debugEvents.addEntry("✅ AI analysis successful", "success")
+			const analysis = await analysisResponse.json()
+			debugEvents.addEntry(`🤖 AI analysis result: ${JSON.stringify(analysis, null, 2)}`, "info")
+			debugEvents.addEntry(`✨ AI suggested labels: ${analysis.suggestedLabels.join(', ')}`, "success")
+			debugEvents.addEntry(`📊 Confidence: ${Math.round(analysis.confidence * 100)}%`, "info")
+
+			// Step 3: Apply labels to Gmail
+			if (analysis.suggestedLabels.length > 0) {
+				const labelIds = await getLabelIds(analysis.suggestedLabels, googleTokens.access_token)
+				
+				if (labelIds.length > 0) {
+					const messageId = email.threadId || email.id.toString()
+					const modifyResponse = await fetch(
+						`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`,
+						{
+							method: 'POST',
+							headers: {
+								'Authorization': `Bearer ${googleTokens.access_token}`,
+								'Content-Type': 'application/json',
+							},
+							body: JSON.stringify({
+								addLabelIds: labelIds,
+							}),
+						}
+					)
+
+					if (!modifyResponse.ok) {
+						throw new Error(`Failed to apply labels: ${modifyResponse.statusText}`)
+					}
+
+					debugEvents.addEntry(`Successfully applied ${labelIds.length} labels`, "success")
+					toast.success("AI labeling completed!", {
+						description: `Applied ${analysis.suggestedLabels.length} labels: ${analysis.suggestedLabels.join(', ')}`
+					})
+				}
+			} else {
+				toast.info("No new labels suggested", {
+					description: "Email already has appropriate labels or no suitable labels found"
+				})
+			}
 
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : "Unknown error"
-			debugEvents.addEntry(`AI processing failed: ${errorMessage}`, "error")
+			debugEvents.addEntry("❌ AI LABELING FAILED", "error")
+			debugEvents.addEntry(`Error type: ${typeof error}`, "error")
+			debugEvents.addEntry(`Error constructor: ${error?.constructor?.name}`, "error")
+			
+			if (error instanceof Error) {
+				debugEvents.addEntry(`Error message: ${error.message}`, "error")
+				debugEvents.addEntry(`Error stack: ${error.stack}`, "error")
+			} else {
+				debugEvents.addEntry(`Error object: ${JSON.stringify(error)}`, "error")
+			}
+			
+			// Network connectivity check
+			if (navigator.onLine === false) {
+				debugEvents.addEntry("❌ No internet connection detected", "error")
+				toast.error("No internet connection", {
+					description: "Please check your network connection and try again"
+				})
+			} else {
+				debugEvents.addEntry("✅ Internet connection available", "info")
+				const errorMessage = error instanceof Error ? error.message : "Unknown error"
+				toast.error("AI labeling failed", {
+					description: errorMessage
+				})
+			}
 		} finally {
+			debugEvents.addEntry("🔄 Cleaning up processing state...", "info")
 			setProcessingEmails(prev => {
 				const next = new Set(prev)
 				next.delete(email.id)
+				debugEvents.addEntry(`✅ Removed email ${email.id} from processing queue`, "info")
 				return next
 			})
+			debugEvents.addEntry("=== AI LABELING DEBUG END ===", "info")
 		}
+	}
+
+	// Helper function to get label IDs
+	const getLabelIds = async (labelNames: string[], accessToken: string): Promise<string[]> => {
+		const labelsResponse = await fetch(
+			'https://gmail.googleapis.com/gmail/v1/users/me/labels',
+			{
+				headers: {
+					'Authorization': `Bearer ${accessToken}`,
+				},
+			}
+		)
+		
+		const labelsData = await labelsResponse.json()
+		const labelIds: string[] = []
+		
+		for (const labelName of labelNames) {
+			const existingLabel = labelsData.labels.find(
+				(label: any) => label.name.toLowerCase() === labelName.toLowerCase()
+			)
+			
+			if (existingLabel) {
+				labelIds.push(existingLabel.id)
+			} else {
+				// Create new label if it doesn't exist
+				try {
+					const newLabel = await createLabel(labelName, accessToken)
+					labelIds.push(newLabel.id)
+				} catch (error) {
+					debugEvents.addEntry(`Failed to create label "${labelName}"`, "warning")
+				}
+			}
+		}
+		
+		return labelIds
+	}
+
+	// Helper function to create a new label
+	const createLabel = async (name: string, accessToken: string) => {
+		const response = await fetch(
+			'https://gmail.googleapis.com/gmail/v1/users/me/labels',
+			{
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${accessToken}`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					name,
+					labelListVisibility: 'labelShow',
+					messageListVisibility: 'show',
+				}),
+			}
+		)
+		
+		if (!response.ok) {
+			throw new Error(`Failed to create label: ${response.statusText}`)
+		}
+		
+		return await response.json()
 	}
 
 	return (
@@ -4223,22 +4405,22 @@ function HomeComponent() {
 													</button>
 												</div>
 
-												{/* AI Processing Button */}
+												{/* AI Label Button */}
 												<div className="mt-2 flex justify-left">
 													<button
 														onClick={() => handleAIProcess(selectedEmail)}
-														disabled={processingEmails.has(selectedEmail.id)}
+														disabled={processingEmails.has(selectedEmail.id) || !googleTokens?.access_token}
 														className="inline-flex items-left gap-1.5 rounded-md bg-purple-600 px-6 py-2 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
 													>
 														{processingEmails.has(selectedEmail.id) ? (
 															<>
 																<RefreshCw className="h-5 w-5 animate-spin" />
-																Processing...
+																Labeling...
 															</>
 														) : (
 															<>
 																<Tag className="h-5 w-5" />
-																AI Label & Categorize
+																AI Label
 															</>
 														)}
 													</button>
