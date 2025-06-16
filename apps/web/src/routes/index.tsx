@@ -457,6 +457,7 @@ const DUMMY_EMAILS: Record<string, Email[]> = {
 	"to-reply": [
 		{
 			id: 1,
+			gmailId: "msg_1abc", // Mock Gmail message ID in base64url format
 			sender: "Google Recruiter",
 			time: "2 hours ago",
 			subject: "Google SWE Internship Interview Follow-up",
@@ -503,6 +504,7 @@ Luis Sanchez`,
 		},
 		{
 			id: 2,
+			gmailId: "msg_2def", // Mock Gmail message ID in base64url format
 			sender: "Cal Jazz Ensemble",
 			time: "Yesterday",
 			subject: "Spring Concert Rehearsal Schedule",
@@ -551,6 +553,7 @@ Cal Jazz Ensemble`,
 		},
 		{
 			id: 3,
+			gmailId: "msg_3ghi", // Mock Gmail message ID in base64url format
 			sender: "Berkeley CS Department",
 			time: "3 hours ago",
 			subject: "CS 189 Project Proposal Due",
@@ -603,6 +606,7 @@ CS 189 Student`,
 		},
 		{
 			id: 17,
+			gmailId: "msg_17jkl", // Mock Gmail message ID in base64url format
 			sender: "CS 170 TA",
 			time: "30 minutes ago",
 			subject: "Project 2 Submission Issue",
@@ -644,6 +648,7 @@ Luis Sanchez`,
 		},
 		{
 			id: 18,
+			gmailId: "msg_18mno", // Mock Gmail message ID in base64url format
 			sender: "Research Lab Director",
 			time: "1 hour ago",
 			subject: "Summer Research Position",
@@ -691,6 +696,7 @@ Luis Sanchez`,
 		},
 		{
 			id: 19,
+			gmailId: "msg_19mno", // Mock Gmail message ID in base64url format
 			sender: "Hackathon Organizer",
 			time: "2 hours ago",
 			subject: "CalHacks 11.0 - Team Registration",
@@ -750,6 +756,7 @@ Team Lead, AI Innovators`,
 		},
 		{
 			id: 20,
+			gmailId: "msg_20pqr", // Mock Gmail message ID in base64url format
 			sender: "Conference Chair",
 			time: "3 hours ago",
 			subject: "Paper Review Request - ICML 2024",
@@ -803,6 +810,7 @@ UC Berkeley`,
 	academic: [
 		{
 			id: 4,
+			gmailId: "msg_4stu", // Mock Gmail message ID in base64url format
 			sender: "EECS Department",
 			time: "1 day ago",
 			subject: "Spring 2024 Course Registration",
@@ -843,6 +851,7 @@ EECS Student Services`,
 		},
 		{
 			id: 5,
+			gmailId: "msg_5vwx", // Mock Gmail message ID in base64url format
 			sender: "Academic Advisor",
 			time: "2 days ago",
 			subject: "Degree Progress Check",
@@ -879,6 +888,7 @@ EECS Academic Advisor`,
 		},
 		{
 			id: 21,
+			gmailId: "msg_21yz", // Mock Gmail message ID in base64url format
 			sender: "EECS Department",
 			time: "4 hours ago",
 			subject: "Graduate Student Symposium",
@@ -914,6 +924,7 @@ EECS Graduate Office`,
 		},
 		{
 			id: 22,
+			gmailId: "msg_22abc", // Mock Gmail message ID in base64url format
 			sender: "CS 189 Professor",
 			time: "5 hours ago",
 			subject: "Final Project Guidelines",
@@ -957,6 +968,7 @@ CS 189: Introduction to Machine Learning`,
 	career: [
 		{
 			id: 6,
+			gmailId: "msg_6def", // Mock Gmail message ID in base64url format
 			sender: "Meta University Recruiting",
 			time: "1 hour ago",
 			subject: "Meta SWE Internship Application Status",
@@ -1010,6 +1022,7 @@ Luis Sanchez`,
 		},
 		{
 			id: 7,
+			gmailId: "msg_7ghi", // Mock Gmail message ID in base64url format
 			sender: "Amazon Uni. Recruiting",
 			time: "3 hours ago",
 			subject: "Amazon SDE Internship - Next Steps",
@@ -1028,6 +1041,7 @@ Luis Sanchez`,
 		},
 		{
 			id: 23,
+			gmailId: "msg_23jkl", // Mock Gmail message ID in base64url format
 			sender: "Google Recruiter",
 			time: "6 hours ago",
 			subject: "Google SWE Internship - Next Steps",
@@ -1065,6 +1079,7 @@ Google`,
 		},
 		{
 			id: 24,
+			gmailId: "msg_24mno", // Mock Gmail message ID in base64url format
 			sender: "Microsoft Recruiter",
 			time: "7 hours ago",
 			subject: "Microsoft Research Internship",
@@ -1104,6 +1119,7 @@ Microsoft`,
 	clubs: [
 		{
 			id: 8,
+			gmailId: "msg_8pqr", // Mock Gmail message ID in base64url format
 			sender: "Cal Hackers",
 			time: "2 days ago",
 			subject: "CalHacks 11.0 Planning Meeting",
@@ -1141,6 +1157,7 @@ Cal Hackers Team`,
 		},
 		{
 			id: 9,
+			gmailId: "msg_9stu", // Mock Gmail message ID in base64url format
 			sender: "Berkeley AI Research",
 			time: "1 day ago",
 			subject: "Weekly Research Meeting",
@@ -1178,6 +1195,7 @@ BAIR Leadership Team`,
 		},
 		{
 			id: 25,
+			gmailId: "msg_25vwx", // Mock Gmail message ID in base64url format
 			sender: "BAIR Leadership",
 			time: "8 hours ago",
 			subject: "Weekly Research Meeting Agenda",
@@ -1215,6 +1233,7 @@ BAIR Leadership Team`,
 		},
 		{
 			id: 26,
+			gmailId: "msg_26yz", // Mock Gmail message ID in base64url format
 			sender: "Cal Hackers",
 			time: "9 hours ago",
 			subject: "Weekly Workshop: Web3 Development",
@@ -1253,6 +1272,7 @@ Cal Hackers Team`,
 	personal: [
 		{
 			id: 10,
+			gmailId: "msg_10abc", // Mock Gmail message ID in base64url format
 			sender: "Mom",
 			time: "1 day ago",
 			subject: "Family Dinner This Weekend",
@@ -1280,6 +1300,7 @@ Mom`,
 		},
 		{
 			id: 11,
+			gmailId: "msg_11def", // Mock Gmail message ID in base64url format
 			sender: "Roommate",
 			time: "3 hours ago",
 			subject: "Rent Due Tomorrow",
@@ -1297,6 +1318,7 @@ Mom`,
 		},
 		{
 			id: 27,
+			gmailId: "msg_27ghi", // Mock Gmail message ID in base64url format
 			sender: "Roommate",
 			time: "10 hours ago",
 			subject: "Apartment Maintenance",
@@ -1326,6 +1348,7 @@ Alex`,
 		},
 		{
 			id: 28,
+			gmailId: "msg_28jkl", // Mock Gmail message ID in base64url format
 			sender: "Family Group Chat",
 			time: "11 hours ago",
 			subject: "Summer Vacation Planning",
@@ -1367,6 +1390,7 @@ Mom`,
 	newsletters: [
 		{
 			id: 12,
+			gmailId: "msg_12mno", // Mock Gmail message ID in base64url format
 			sender: "Berkeley Engineering",
 			time: "2 days ago",
 			subject: "Engineering Weekly Digest",
@@ -1384,6 +1408,7 @@ Mom`,
 		},
 		{
 			id: 13,
+			gmailId: "msg_13pqr", // Mock Gmail message ID in base64url format
 			sender: "ACM Berkeley",
 			time: "1 day ago",
 			subject: "ACM Weekly Newsletter",
@@ -1401,6 +1426,7 @@ Mom`,
 		},
 		{
 			id: 29,
+			gmailId: "msg_29stu", // Mock Gmail message ID in base64url format
 			sender: "ACM Tech News",
 			time: "12 hours ago",
 			subject: "Weekly Tech Digest",
@@ -1418,6 +1444,7 @@ Mom`,
 		},
 		{
 			id: 30,
+			gmailId: "msg_30vwx", // Mock Gmail message ID in base64url format
 			sender: "Berkeley Engineering",
 			time: "13 hours ago",
 			subject: "Engineering Weekly",
@@ -1437,6 +1464,7 @@ Mom`,
 	"cold-email": [
 		{
 			id: 14,
+			gmailId: "msg_14yz", // Mock Gmail message ID in base64url format
 			sender: "Tech Recruiter",
 			time: "1 hour ago",
 			subject: "Exciting Opportunity at TechCorp",
@@ -1481,6 +1509,7 @@ Luis Sanchez`,
 		},
 		{
 			id: 15,
+			gmailId: "msg_15abc", // Mock Gmail message ID in base64url format
 			sender: "Startup Founder",
 			time: "2 hours ago",
 			subject: "Join Our AI Startup Journey",
@@ -1523,6 +1552,7 @@ Luis Sanchez`,
 		},
 		{
 			id: 16,
+			gmailId: "msg_16def", // Mock Gmail message ID in base64url format
 			sender: "Product Manager",
 			time: "3 hours ago",
 			subject: "Collaboration Opportunity",
@@ -1564,6 +1594,7 @@ Luis Sanchez`,
 		},
 		{
 			id: 31,
+			gmailId: "msg_31ghi", // Mock Gmail message ID in base64url format
 			sender: "AI Startup CEO",
 			time: "14 hours ago",
 			subject: "Partnership Opportunity",
@@ -1603,6 +1634,7 @@ Luis Sanchez`,
 		},
 		{
 			id: 32,
+			gmailId: "msg_32jkl", // Mock Gmail message ID in base64url format
 			sender: "Tech Conference Organizer",
 			time: "15 hours ago",
 			subject: "Speaker Invitation - AI Conference",
