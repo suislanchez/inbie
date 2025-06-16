@@ -44,6 +44,7 @@ import { fetchGmailEmails, type GmailEmail } from "@/lib/email-api";
 import { generateEmailDraft, type EmailData } from "@/lib/ai-draft";
 import { processEmailWithAI } from '../lib/ai-email-processor'
 import { ManualLabelDropdown } from "../components/manual-label-dropdown"
+import { AILabelButton } from "../components/ai-label-button"
 
 // CSS for email body rendering
 const emailStyles = `
@@ -4416,23 +4417,15 @@ function HomeComponent() {
 
 												{/* AI Label Button */}
 												<div className="mt-2 flex justify-left">
-													<button
-														onClick={() => handleAIProcess(selectedEmail)}
-														disabled={processingEmails.has(selectedEmail.id) || !googleTokens?.access_token}
-														className="inline-flex items-left gap-1.5 rounded-md bg-purple-600 px-6 py-2 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-													>
-														{processingEmails.has(selectedEmail.id) ? (
-															<>
-																<RefreshCw className="h-5 w-5 animate-spin" />
-																Labeling...
-															</>
-														) : (
-															<>
-																<Tag className="h-5 w-5" />
-																AI Label
-															</>
-														)}
-													</button>
+													<AILabelButton
+														email={selectedEmail}
+														accessToken={googleTokens?.access_token || ""}
+														refreshToken={googleTokens?.refresh_token || ""}
+														disabled={!googleTokens?.access_token}
+														onLabelApplied={(labelId, labelName) => {
+															console.log(`AI applied label ${labelName} (${labelId}) to email ${selectedEmail.gmailId}`)
+														}}
+													/>
 												</div>
 											</div>
 
