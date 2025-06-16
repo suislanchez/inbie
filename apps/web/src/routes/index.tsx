@@ -224,7 +224,8 @@ const TITLE_TEXT = `
 
 // Add interface for email type
 interface Email {
-	id: number;
+	id: number; // Internal numeric ID
+	gmailId: string; // Original Gmail message ID
 	sender: string;
 	senderEmail?: string; // Optional field for sender's email address
 	to?: string; // Optional field for recipient's email address
@@ -3181,8 +3182,15 @@ function HomeComponent() {
 				return match[1] || "";
 			};
 
+			// Ensure we have a valid Gmail message ID
+			if (!email.id) {
+				console.error("🔴 Missing Gmail message ID for email:", email);
+				throw new Error("Missing Gmail message ID");
+			}
+
 			return {
 				id: numericId,
+				gmailId: email.id, // Store the Gmail message ID (already in base64url format)
 				sender: email.from ? extractName(email.from) : "Unknown Sender",
 				senderEmail: email.from ? extractEmailAddress(email.from) : "",
 				to: email.to || "",
@@ -3194,6 +3202,7 @@ function HomeComponent() {
 				badges,
 				hasAIDraft: false, // No AI drafts for real emails yet
 				aiDraft: "",
+				labelIds: email.labelIds || [], // Store the original label IDs
 				analytics: {
 					responseTime,
 					priority,
@@ -4358,7 +4367,8 @@ function HomeComponent() {
 													{/* Manual Label Dropdown */}
 													<ManualLabelDropdown
 														email={{
-															id: selectedEmail.id.toString(),
+															id: selectedEmail.id,
+															gmailId: selectedEmail.gmailId,
 															subject: selectedEmail.subject,
 															labelIds: selectedEmail.labelIds || []
 														}}
@@ -4367,7 +4377,7 @@ function HomeComponent() {
 														disabled={!googleTokens?.access_token}
 														onLabelApplied={(labelId, labelName) => {
 															// Optionally refresh the email list or update UI
-															console.log(`Applied label ${labelName} (${labelId}) to email ${selectedEmail.id}`)
+															console.log(`Applied label ${labelName} (${labelId}) to email ${selectedEmail.gmailId}`)
 														}}
 													/>
 												</div>

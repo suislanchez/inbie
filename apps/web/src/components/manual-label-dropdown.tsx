@@ -25,7 +25,8 @@ interface GmailLabel {
 }
 
 interface Email {
-  id: string
+  id: number // Internal numeric ID
+  gmailId: string // Gmail message ID (in base64url format)
   subject: string
   labelIds?: string[]
 }
@@ -184,7 +185,7 @@ export function ManualLabelDropdown({
   }
 
   const applyLabel = async (labelId: string, labelName: string) => {
-    if (!email.id || isApplyingLabel) return
+    if (!email.gmailId || isApplyingLabel) return
     
     setIsApplyingLabel(labelId)
     
@@ -216,7 +217,7 @@ export function ManualLabelDropdown({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messageId: email.id,
+          messageId: email.gmailId,
           labelIds: [labelId],
         }),
       })
@@ -236,7 +237,7 @@ export function ManualLabelDropdown({
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                messageId: email.id,
+                messageId: email.gmailId,
                 labelIds: [labelId],
               }),
             })
