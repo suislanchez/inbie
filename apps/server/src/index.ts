@@ -9,6 +9,7 @@ import { stream } from "hono/streaming";
 import { auth } from "./lib/auth";
 import { createContext } from "./lib/context";
 import { appRouter } from "./routers/index";
+import { getLabelList, labelEmail } from "./lib/gmail";
 
 // Set default environment variables if not provided
 process.env.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "680235656943-s6evnaejjbkppohtl764v3dtqg56p9uq.apps.googleusercontent.com";
@@ -55,6 +56,89 @@ app.post("/ai", async (c) => {
 	c.header("Content-Type", "text/plain; charset=utf-8");
 
 	return stream(c, (stream) => stream.pipe(result.toDataStream()));
+});
+
+app.get("/api/gmail/labels", async (c) => {
+	try {
+		console.log("🟡 SERVER: GET /api/gmail/labels called");
+		
+		const authHeader = c.req.header("Authorization");
+		console.log("🟡 SERVER: Auth header:", authHeader ? `${authHeader.substring(0, 20)}...` : "NOT_PRESENT");
+		
+		const accessToken = authHeader?.replace("Bearer ", "");
+		console.log("🟡 SERVER: Extracted token:", accessToken ? `${accessToken.substring(0, 20)}...` : "NOT_PRESENT");
+		console.log("🟡 SERVER: Token length:", accessToken?.length || 0);
+		
+		if (!accessToken) {
+			console.error("🔴 SERVER: No access token provided");
+			return c.json({ error: "Access token required" }, 401);
+		}
+
+		console.log("🟡 SERVER: Calling getLabelList...");
+		const labels = await getLabelList(accessToken);
+		console.log("🟢 SERVER: Labels fetched successfully, count:", labels?.length || 0);
+		
+		// Filter to show user-created labels and important system labels
+		const filteredLabels = labels.filter((label: any) => {
+			return (
+				label.type === "user" || 
+				["IMPORTANT", "STARRED", "UNREAD"].includes(label.id)
+			);
+		}).map((label: any) => ({
+			id: label.id,
+			name: label.name,
+			type: label.type,
+			color: label.color || null,
+		}));
+
+		return c.json({
+			success: true,
+			labels: filteredLabels,
+		});
+	} catch (error) {
+		console.error("🔴 SERVER: Error fetching labels:", error?.message || error);
+		console.error("🔴 SERVER: Error details:", error);
+		return c.json(
+			{
+				success: false,
+				error: error instanceof Error ? error.message : "Unknown error",
+			},
+			500
+		);
+	}
+});
+
+app.post("/api/gmail/label-email", async (c) => {
+	try {
+		const accessToken = c.req.header("Authorization")?.replace("Bearer ", "");
+		
+		if (!accessToken) {
+			return c.json({ error: "Access token required" }, 401);
+		}
+
+		const body = await c.req.json();
+		const { messageId, labelIds } = body;
+
+		if (!messageId || !labelIds || !Array.isArray(labelIds)) {
+			return c.json({ error: "messageId and labelIds (array) are required" }, 400);
+		}
+
+		const result = await labelEmail(accessToken, messageId, labelIds);
+
+		return c.json({
+			success: true,
+			result,
+		});
+	} catch (error) {
+		console.error("Error labeling email:", error);
+		return c.json(
+			{
+				success: false,
+				error: error instanceof Error ? error.message : "Unknown error",
+			},
+			500
+		);
+	}
 });
 
 app.get("/", (c) => {

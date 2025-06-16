@@ -43,6 +43,7 @@ import { debugEvents } from "@/components/debug-overlay";
 import { fetchGmailEmails, type GmailEmail } from "@/lib/email-api";
 import { generateEmailDraft, type EmailData } from "@/lib/ai-draft";
 import { processEmailWithAI } from '../lib/ai-email-processor'
+import { ManualLabelDropdown } from "../components/manual-label-dropdown"
 
 // CSS for email body rendering
 const emailStyles = `
@@ -236,6 +237,7 @@ interface Email {
 	hasAIDraft: boolean;
 	aiDraft: string;
 	threadId?: string; // Add threadId field
+	labelIds?: string[]; // Add labelIds property for Gmail labels
 	analytics: {
 		responseTime: string;
 		priority: string;
@@ -4334,7 +4336,7 @@ function HomeComponent() {
 												</div>
 												
 												{/* Generate Draft Button (Center) */}
-												<div className="mt-4 flex justify-left">
+												<div className="mt-4 flex justify-left gap-2">
 													<button
 														onClick={handleGenerateDraft}
 														disabled={isDraftGenerating}
@@ -4352,6 +4354,22 @@ function HomeComponent() {
 															</>
 														)}
 													</button>
+													
+													{/* Manual Label Dropdown */}
+													<ManualLabelDropdown
+														email={{
+															id: selectedEmail.id.toString(),
+															subject: selectedEmail.subject,
+															labelIds: selectedEmail.labelIds || []
+														}}
+														accessToken={googleTokens?.access_token || ""}
+														refreshToken={googleTokens?.refresh_token || ""}
+														disabled={!googleTokens?.access_token}
+														onLabelApplied={(labelId, labelName) => {
+															// Optionally refresh the email list or update UI
+															console.log(`Applied label ${labelName} (${labelId}) to email ${selectedEmail.id}`)
+														}}
+													/>
 												</div>
 
 												{/* AI Label Button */}
