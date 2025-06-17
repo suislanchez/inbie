@@ -18,6 +18,8 @@ import {
 	Globe,
 	LineChart,
 	Mail,
+	MessageCircle,
+	Minus,
 	PieChart,
 	RefreshCw,
 	Send,
@@ -2634,7 +2636,27 @@ function HomeComponent() {
 	const [isHistoryModalVisible, setIsHistoryModalVisible] = useState(false);
 	const [isLabelingRecents, setIsLabelingRecents] = useState(false)
 	const [labelingProgress, setLabelingProgress] = useState(0)
+
+	// Chat state
+	const [isChatOpen, setIsChatOpen] = useState(false)
+	const [isChatMinimized, setIsChatMinimized] = useState(false)
+	const [messages, setMessages] = useState<Array<{
+		id: string
+		role: 'user' | 'assistant'
+		content: string
+		timestamp: Date
+	}>>([])
+	const [currentMessage, setCurrentMessage] = useState('')
+	const [isStreaming, setIsStreaming] = useState(false)
+	const chatMessagesRef = useRef<HTMLDivElement>(null)
 	const [emails, setEmails] = useState<Email[]>([])
+
+	// Auto-scroll to bottom when messages change
+	useEffect(() => {
+		if (chatMessagesRef.current) {
+			chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight
+		}
+	}, [messages])
 
 	// Add keyboard shortcut handler for all AI tools
 	useEffect(() => {
@@ -4027,6 +4049,124 @@ function HomeComponent() {
 		} finally {
 			setIsLoadingLabels(false)
 		}
+	}
+
+	// Chat functions
+	const handleSendMessage = async () => {
+		if (!currentMessage.trim() || isStreaming) return
+
+		const userMessage = {
+			id: Date.now().toString(),
+			role: 'user' as const,
+			content: currentMessage.trim(),
+			timestamp: new Date()
+		}
+
+		setMessages(prev => [...prev, userMessage])
+		setCurrentMessage('')
+		setIsStreaming(true)
+
+		const assistantMessage = {
+			id: (Date.now() + 1).toString(),
+			role: 'assistant' as const,
+			content: '',
+			timestamp: new Date()
+		}
+
+		setMessages(prev => [...prev, assistantMessage])
+
+		// Auto-scroll to bottom
+		setTimeout(() => {
+			chatMessagesRef.current?.scrollTo({ top: chatMessagesRef.current.scrollHeight, behavior: 'smooth' })
+		}, 100)
+
+		try {
+			// Call our backend API instead of OpenAI directly
+			const response = await fetch('http://localhost:3000/api/chat', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					messages: [
+						...messages.map(msg => ({ role: msg.role, content: msg.content })),
+						{ role: 'user', content: userMessage.content }
+					]
+				})
+			})
+
+			if (!response.ok) {
+				throw new Error(`HTTP error! status: ${response.status}`)
+			}
+
+			const reader = response.body?.getReader()
+			const decoder = new TextDecoder()
+
+			if (!reader) {
+				throw new Error('No response body')
+			}
+
+			let accumulatedContent = ''
+
+			while (true) {
+				const { done, value } = await reader.read()
+				
+				if (done) break
+
+				const chunk = decoder.decode(value)
+				const lines = chunk.split('\n')
+
+				for (const line of lines) {
+					if (line.startsWith('data: ')) {
+						const data = line.slice(6).trim()
+						
+						if (data === '[DONE]') continue
+
+						try {
+							const json = JSON.parse(data)
+							const content = json.content || ''
+							
+							if (content) {
+								accumulatedContent += content
+								
+								setMessages(prev => prev.map(msg => 
+									msg.id === assistantMessage.id 
+										? { ...msg, content: accumulatedContent }
+										: msg
+								))
+							}
+						} catch (e) {
+							// Ignore JSON parse errors for incomplete chunks
+						}
+					}
+				}
+			}
+		} catch (error) {
+			console.error('Chat error:', error)
+			setMessages(prev => prev.map(msg => 
+				msg.id === assistantMessage.id 
+					? { ...msg, content: 'Sorry, I encountered an error. Please try again.' }
+					: msg
+			))
+		} finally {
+			setIsStreaming(false)
+		}
+	}
+
+	const toggleChat = () => {
+		if (isChatOpen && !isChatMinimized) {
+			setIsChatMinimized(true)
+		} else if (isChatOpen && isChatMinimized) {
+			setIsChatMinimized(false)
+		} else {
+			setIsChatOpen(true)
+			setIsChatMinimized(false)
+		}
+	}
+
+	const closeChat = () => {
+		setIsChatOpen(false)
+		setIsChatMinimized(false)
 	}
 
 	const handleLabelRecents = async () => {
@@ -5921,6 +6061,124 @@ function HomeComponent() {
 								</div>
 							</div>
 						</div>
+					</div>
+				)}
+
+				{/* AI Chat Popup */}
+				{!isChatOpen && (
+					<button
+						onClick={toggleChat}
+						className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-200 flex items-center justify-center z-50"
+					>
+						<MessageCircle className="h-6 w-6" />
+					</button>
+				)}
+
+				{isChatOpen && (
+					<div 
+						className={`fixed bottom-6 right-6 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 transition-all duration-300 ${
+							isChatMinimized 
+								? 'w-80 h-16' 
+								: 'w-96 h-[32rem]'
+						}`}
+					>
+						{/* Chat Header */}
+						<div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+							<div className="flex items-center gap-2">
+								<div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
+									<MessageCircle className="h-4 w-4 text-white" />
+								</div>
+								<div>
+									<h3 className="font-semibold text-sm">AI Assistant</h3>
+									<p className="text-xs text-gray-500 dark:text-gray-400">
+										{isStreaming ? 'Typing...' : 'Online'}
+									</p>
+								</div>
+							</div>
+							<div className="flex items-center gap-1">
+								<button
+									onClick={toggleChat}
+									className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+								>
+									<Minus className="h-4 w-4" />
+								</button>
+								<button
+									onClick={closeChat}
+									className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+								>
+									<X className="h-4 w-4" />
+								</button>
+							</div>
+						</div>
+
+						{!isChatMinimized && (
+							<>
+								{/* Chat Messages */}
+								<div 
+									ref={chatMessagesRef}
+									className="flex-1 overflow-y-auto p-4 space-y-4 h-80"
+								>
+									{messages.length === 0 && (
+										<div className="text-center text-gray-500 dark:text-gray-400 text-sm">
+											<MessageCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+											<p>Start a conversation with your AI assistant</p>
+										</div>
+									)}
+									{messages.map((message) => (
+										<div
+											key={message.id}
+											className={`flex ${
+												message.role === 'user' ? 'justify-end' : 'justify-start'
+											}`}
+										>
+											<div
+												className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm ${
+													message.role === 'user'
+														? 'bg-blue-500 text-white'
+														: 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+												}`}
+											>
+												{message.content}
+												{message.role === 'assistant' && isStreaming && message.content === '' && (
+													<div className="flex items-center gap-1">
+														<div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+														<div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+														<div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+													</div>
+												)}
+											</div>
+										</div>
+									))}
+								</div>
+
+								{/* Chat Input */}
+								<div className="p-4 border-t border-gray-200 dark:border-gray-700">
+									<div className="flex items-center gap-2">
+										<input
+											type="text"
+											value={currentMessage}
+											onChange={(e) => setCurrentMessage(e.target.value)}
+											onKeyDown={(e) => {
+												if (e.key === 'Enter' && !e.shiftKey) {
+													e.preventDefault()
+													handleSendMessage()
+												}
+											}}
+											placeholder="Type your message..."
+											className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+											disabled={isStreaming}
+										/>
+										<button
+											onClick={handleSendMessage}
+											disabled={!currentMessage.trim() || isStreaming}
+											className="p-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+										>
+											<Send className="h-4 w-4" />
+										</button>
+									</div>
+								</div>
+							</>
+						)}
 					</div>
 				)}
 			</div>

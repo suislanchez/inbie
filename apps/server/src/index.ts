@@ -60,6 +60,90 @@ app.post("/ai", async (c) => {
 	return stream(c, (stream) => stream.pipe(result.toDataStream()));
 });
 
+// Chat endpoint for OpenAI streaming
+app.post("/api/chat", async (c) => {
+	try {
+		const body = await c.req.json();
+		const { messages } = body;
+
+		if (!messages || !Array.isArray(messages)) {
+			return c.json({ error: "Messages array is required" }, 400);
+		}
+
+		// Initialize OpenAI client
+		const openai = new OpenAI({
+			apiKey: process.env.OPENAI_API_KEY,
+		});
+
+		if (!process.env.OPENAI_API_KEY) {
+			console.error("OPENAI_API_KEY is not set");
+			return c.json({ error: "OpenAI API key not configured" }, 500);
+		}
+
+		console.log("Creating OpenAI streaming chat completion...");
+
+		// Create streaming completion
+		const stream = await openai.chat.completions.create({
+			model: "gpt-4",
+			messages: [
+				{
+					role: "system",
+					content: "You are a helpful AI assistant for email management. You can help with general questions and email-related tasks."
+				},
+				...messages
+			],
+			stream: true,
+			max_tokens: 500,
+			temperature: 0.7
+		});
+
+		// Set headers for streaming
+		c.header("Content-Type", "text/plain; charset=utf-8");
+		c.header("Cache-Control", "no-cache");
+		c.header("Connection", "keep-alive");
+
+		// Return streaming response
+		return new Response(
+			new ReadableStream({
+				async start(controller) {
+					try {
+						for await (const chunk of stream) {
+							const content = chunk.choices[0]?.delta?.content || '';
+							if (content) {
+								// Send the content as SSE format
+								const data = `data: ${JSON.stringify({ content })}\n\n`;
+								controller.enqueue(new TextEncoder().encode(data));
+							}
+						}
+						// Send done signal
+						controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+						controller.close();
+					} catch (error) {
+						console.error("Streaming error:", error);
+						controller.error(error);
+					}
+				}
+			}),
+			{
+				headers: {
+					"Content-Type": "text/plain; charset=utf-8",
+					"Cache-Control": "no-cache",
+					"Connection": "keep-alive"
+				}
+			}
+		);
+
+	} catch (error) {
+		console.error("Chat API error:", error);
+		return c.json(
+			{
+				error: error instanceof Error ? error.message : "Unknown error occurred"
+			},
+			500
+		);
+	}
+});
+
 app.get("/api/gmail/labels", async (c) => {
 	try {
 		console.log("🟡 SERVER: GET /api/gmail/labels called");

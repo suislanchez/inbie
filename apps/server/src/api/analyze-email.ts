@@ -67,7 +67,7 @@ Respond in this JSON format:
     })
 
     // Parse OpenAI response
-    const analysis = JSON.parse(completion.choices[0].message.content)
+    const analysis = JSON.parse(completion.choices[0].message.content || '{}')
 
     // Return the analysis
     return new Response(JSON.stringify(analysis), {
