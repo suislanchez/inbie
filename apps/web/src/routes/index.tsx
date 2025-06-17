@@ -4036,9 +4036,9 @@ function HomeComponent() {
 		setLabelingProgress(0)
 		
 		try {
-			// Get 5 most recent emails from the correct email array
+			// Get 19 most recent emails from the correct email array
 			const allEmails = realEmails.length > 0 ? realEmails : emails
-			const recentEmails = allEmails.slice(0, 5)
+			const recentEmails = allEmails.slice(0, 19)
 			
 			if (recentEmails.length === 0) {
 				toast.info("No emails found to label", {
@@ -4077,21 +4077,21 @@ function HomeComponent() {
 				{/* Account Section */}
 				<div className="border-b p-4">
 					<div className="mb-4 flex items-center gap-3">
-						<div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg">
+						<div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-lg">
 							<img
 								src={theme === "dark" ? "/logo.png" : "/logo.png"}
-								alt="InboxFlux Logo"
-								className="h-12 w-12 object-contain"
-								width={48}
-								height={48}
+								alt="Boxy Logo"
+								className="h-20 w-20 object-contain"
+								width={80}
+								height={80}
 							/>
 						</div>
 						<div className="flex flex-col">
-							<h1 className="font-semibold text-xl text-primary tracking-tight">
-								InboxFlux
+							<h1 className="font-semibold text-3xl text-primary tracking-tight">
+								Boxy
 							</h1>
 							<p className="text-muted-foreground text-sm">
-								AI Email Assistant
+								Inbox Your Way
 							</p>
 						</div>
 					</div>
@@ -5026,7 +5026,7 @@ function HomeComponent() {
 							}}
 						>
 							<div className="mb-6 flex items-center justify-between">
-								<h2 className="font-semibold text-lg">Create New Folder</h2>
+								<h2 className="font-semibold text-lg">Create New Label</h2>
 								<button
 									onClick={handleCloseModal}
 									className="rounded-md p-1 hover:bg-accent transition-colors duration-200"
@@ -5046,7 +5046,7 @@ function HomeComponent() {
 										htmlFor="folder-name"
 										className="mb-1.5 block font-medium text-sm"
 									>
-										Folder Name
+										Label Name
 									</label>
 									<input
 										id="folder-name"
