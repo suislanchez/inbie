@@ -12,6 +12,15 @@
 - **Real-time Processing**: Live email fetching and processing
 - **Multi-platform**: Web, mobile (React Native), and documentation
 
+
+---
+
+![inbox-flux-demo2-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/9ca9b9ab-db4f-4496-8fbd-4935f7768c3e) 
+Auto Draft Generation 
+![MyMovie2-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/a97761fc-463a-467f-a3de-664e9e024f80)
+Smart Labeling
+---
+
 ##  Project Structure
 
 ```
