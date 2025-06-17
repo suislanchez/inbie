@@ -3767,6 +3767,159 @@ function HomeComponent() {
 		return await response.json()
 	}
 
+	const handleAIProcessWithLabeling = async (email: Email) => {
+		debugEvents.addEntry("=== AI LABELING WITH GMAIL API START ===", "info")
+		
+		// Token validation with detailed logging
+		if (!googleTokens?.access_token) {
+			debugEvents.addEntry("❌ No access token available for AI labeling", "error")
+			toast.error("Please sign in with Google to use AI labeling")
+			return
+		}
+
+		debugEvents.addEntry("✅ Access token found", "success")
+		setProcessingEmails(prev => new Set(prev).add(email.id))
+		debugEvents.addEntry(`📧 Starting AI labeling for email: ${email.subject}`, "info")
+		
+		toast.info("Analyzing email with AI...", {
+			description: "Getting label suggestions from AI"
+		})
+
+		try {
+			// Step 1: Get existing Gmail labels
+			debugEvents.addEntry("📋 Step 1: Fetching existing Gmail labels...", "info")
+			const labelsResponse = await fetch(
+				'https://gmail.googleapis.com/gmail/v1/users/me/labels',
+				{
+					headers: {
+						'Authorization': `Bearer ${googleTokens.access_token}`,
+					},
+				}
+			)
+			
+			if (!labelsResponse.ok) {
+				throw new Error(`Failed to fetch labels: ${labelsResponse.statusText}`)
+			}
+			
+			const labelsData = await labelsResponse.json()
+			const existingLabels = labelsData.labels
+				.filter((label: any) => label.type === 'user')
+				.map((label: any) => label.name)
+			
+			debugEvents.addEntry(`✅ Found ${existingLabels.length} user labels: ${existingLabels.join(', ')}`, "info")
+
+			// Step 2: Analyze email with AI
+			debugEvents.addEntry("🤖 Step 2: Analyzing email with AI...", "info")
+			
+			const emailData = {
+				subject: email.subject,
+				from: email.senderEmail || email.sender,
+				content: email.content,
+				date: email.date || email.time,
+			}
+			
+			const aiStartTime = performance.now()
+			const analysisResponse = await fetch('/api/analyze-email', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					email: emailData,
+					existingLabels,
+				}),
+			})
+			const aiEndTime = performance.now()
+			
+			debugEvents.addEntry(`📊 AI analysis response time: ${(aiEndTime - aiStartTime).toFixed(2)}ms`, "info")
+
+			if (!analysisResponse.ok) {
+				debugEvents.addEntry("❌ AI analysis request failed", "error")
+				throw new Error(`Failed to analyze email: ${analysisResponse.status} ${analysisResponse.statusText}`)
+			}
+
+			const analysis = await analysisResponse.json()
+			debugEvents.addEntry(`🤖 AI analysis result: ${JSON.stringify(analysis, null, 2)}`, "info")
+			debugEvents.addEntry(`✨ AI suggested labels: ${analysis.suggestedLabels.join(', ')}`, "success")
+
+			// Step 3: Apply labels to Gmail via API
+			if (analysis.suggestedLabels.length > 0) {
+				debugEvents.addEntry("🏷️ Step 3: Applying labels to Gmail...", "info")
+				
+				// Get or create label IDs
+				const labelIds = await getLabelIds(analysis.suggestedLabels, googleTokens.access_token)
+				debugEvents.addEntry(`✅ Got label IDs: ${labelIds.join(', ')}`, "info")
+				
+				// Apply labels to the email in Gmail
+				if (email.gmailId && labelIds.length > 0) {
+					const modifyResponse = await fetch(
+						`https://gmail.googleapis.com/gmail/v1/users/me/messages/${email.gmailId}/modify`,
+						{
+							method: 'POST',
+							headers: {
+								'Authorization': `Bearer ${googleTokens.access_token}`,
+								'Content-Type': 'application/json',
+							},
+							body: JSON.stringify({
+								addLabelIds: labelIds,
+							}),
+						}
+					)
+					
+					if (modifyResponse.ok) {
+						debugEvents.addEntry(`✅ Successfully applied ${labelIds.length} labels to Gmail`, "success")
+						toast.success("AI analysis and labeling completed!", {
+							description: `Applied ${analysis.suggestedLabels.length} labels: ${analysis.suggestedLabels.join(', ')}`
+						})
+						
+						// Update the email in local state to reflect the new labels
+						const updatedEmail = {
+							...email,
+							badges: [...email.badges, ...analysis.suggestedLabels],
+							labelIds: [...(email.labelIds || []), ...labelIds]
+						}
+						
+						// Update the emails state
+						if (realEmails.length > 0) {
+							setRealEmails(prev => prev.map(e => e.id === email.id ? updatedEmail : e))
+						} else {
+							setEmails(prev => prev.map(e => e.id === email.id ? updatedEmail : e))
+						}
+					} else {
+						const errorText = await modifyResponse.text()
+						debugEvents.addEntry(`❌ Failed to apply labels to Gmail: ${errorText}`, "error")
+						throw new Error(`Failed to apply labels: ${modifyResponse.statusText}`)
+					}
+				} else {
+					debugEvents.addEntry("⚠️ Missing Gmail ID or no labels to apply", "warning")
+				}
+			} else {
+				toast.info("No new labels suggested", {
+					description: "Email already has appropriate labels or no suitable labels found"
+				})
+			}
+
+		} catch (error) {
+			debugEvents.addEntry("❌ AI LABELING WITH GMAIL API FAILED", "error")
+			
+			if (error instanceof Error) {
+				debugEvents.addEntry(`Error message: ${error.message}`, "error")
+			}
+			
+			const errorMessage = error instanceof Error ? error.message : "Unknown error"
+			toast.error("AI labeling failed", {
+				description: errorMessage
+			})
+		} finally {
+			setProcessingEmails(prev => {
+				const next = new Set(prev)
+				next.delete(email.id)
+				return next
+			})
+			debugEvents.addEntry("=== AI LABELING WITH GMAIL API END ===", "info")
+		}
+	}
+
 	const handleLabelRecents = async () => {
 		if (!googleTokens?.access_token || isLabelingRecents) return
 		
@@ -3774,12 +3927,22 @@ function HomeComponent() {
 		setLabelingProgress(0)
 		
 		try {
-			// Get 5 most recent emails
-			const recentEmails = emails.slice(0, 5)
+			// Get 5 most recent emails from the correct email array
+			const allEmails = realEmails.length > 0 ? realEmails : emails
+			const recentEmails = allEmails.slice(0, 5)
+			
+			if (recentEmails.length === 0) {
+				toast.info("No emails found to label", {
+					description: "Make sure you have fetched emails first"
+				})
+				return
+			}
+			
+			debugEvents.addEntry(`Starting to label ${recentEmails.length} recent emails`, "info")
 			
 			for (let i = 0; i < recentEmails.length; i++) {
 				const email = recentEmails[i]
-				await handleAIProcess(email)
+				await handleAIProcessWithLabeling(email)
 				setLabelingProgress(((i + 1) / recentEmails.length) * 100)
 			}
 			
