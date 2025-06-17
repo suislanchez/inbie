@@ -60,17 +60,16 @@ app.post("/ai", async (c) => {
 	return stream(c, (stream) => stream.pipe(result.toDataStream()));
 });
 
-// Chat endpoint for OpenAI streaming
+// Chat endpoint with Gmail email data integration
 app.post("/api/chat", async (c) => {
 	try {
 		const body = await c.req.json();
-		const { messages } = body;
+		const { messages, emailContext } = body;
 
 		if (!messages || !Array.isArray(messages)) {
 			return c.json({ error: "Messages array is required" }, 400);
 		}
 
-		// Initialize OpenAI client
 		const openai = new OpenAI({
 			apiKey: process.env.OPENAI_API_KEY,
 		});
@@ -80,20 +79,140 @@ app.post("/api/chat", async (c) => {
 			return c.json({ error: "OpenAI API key not configured" }, 500);
 		}
 
-		console.log("Creating OpenAI streaming chat completion...");
+		const lastMessage = messages[messages.length - 1]?.content || '';
+		const isEmailQuery = /email|inbox|gmail|summarize|message|sender|subject|today|recent|important|urgent/i.test(lastMessage);
 
-		// Create streaming completion
+		// Enhanced system message and user context
+		let systemMessage = "You are a helpful AI assistant for email management. You can help with general questions and email-related tasks.";
+		let enhancedMessages = [...messages];
+
+		// If email tokens are provided and it's an email query, fetch and include email data
+		if (emailContext?.accessToken && emailContext?.refreshToken && isEmailQuery) {
+			try {
+				console.log("Fetching emails for chat context...");
+				
+				// Use the same email fetching logic that works in the frontend
+				const { getRecentEmails } = await import("./lib/googleAuth");
+				
+				// Get today's emails and recent emails
+				const emails = await getRecentEmails(
+					emailContext.accessToken, 
+					emailContext.refreshToken, 
+					50 // Get more emails to filter
+				);
+				
+				// Filter successful emails
+				const validEmails = emails.filter((email): email is {
+					id: string | null | undefined;
+					threadId: string | null | undefined;
+					snippet: string | null | undefined;
+					subject: string;
+					from: string;
+					to: string;
+					date: string;
+					body: string;
+					labelIds: string[] | null | undefined;
+				} => !('error' in email));
+
+				// Get today's emails
+				const today = new Date();
+				today.setHours(0, 0, 0, 0);
+				
+				const todaysEmails = validEmails.filter(email => {
+					if (!email.date) return false;
+					const emailDate = new Date(email.date);
+					return emailDate >= today;
+				});
+
+				// Get important/urgent emails
+				const importantEmails = validEmails.filter(email => {
+					const hasImportantLabel = email.labelIds?.some(labelId => 
+						['IMPORTANT', 'STARRED'].includes(labelId)
+					);
+					
+					const urgentKeywords = ['urgent', 'asap', 'emergency', 'deadline', 'critical', 'important'];
+					const hasUrgentKeywords = urgentKeywords.some(keyword => 
+						email.subject?.toLowerCase().includes(keyword) || 
+						email.snippet?.toLowerCase().includes(keyword)
+					);
+					
+					return hasImportantLabel || hasUrgentKeywords;
+				});
+
+				// Prepare email context for AI
+				const emailData = {
+					totalEmails: validEmails.length,
+					todaysEmails: todaysEmails.length,
+					importantEmails: importantEmails.length,
+					recentEmails: validEmails.slice(0, 10).map(email => ({
+						subject: email.subject,
+						from: email.from,
+						date: email.date,
+						snippet: email.snippet?.substring(0, 150),
+						isToday: todaysEmails.some(te => te.id === email.id),
+						isImportant: importantEmails.some(ie => ie.id === email.id)
+					})),
+					todaysEmailsDetailed: todaysEmails.slice(0, 5).map(email => ({
+						subject: email.subject,
+						from: email.from,
+						date: email.date,
+						snippet: email.snippet?.substring(0, 200)
+					})),
+					importantEmailsDetailed: importantEmails.slice(0, 5).map(email => ({
+						subject: email.subject,
+						from: email.from,
+						date: email.date,
+						snippet: email.snippet?.substring(0, 200)
+					}))
+				};
+
+				// Enhanced system message with email context
+				systemMessage = `You are a helpful AI assistant with access to the user's Gmail email data. You can answer questions about their emails, summarize them, and provide insights.
+
+CURRENT EMAIL CONTEXT:
+- Total recent emails: ${emailData.totalEmails}
+- Today's emails: ${emailData.todaysEmails}
+- Important/urgent emails: ${emailData.importantEmails}
+
+RECENT EMAILS (last 10):
+${emailData.recentEmails.map((email, i) => 
+	`${i + 1}. [${email.isToday ? 'TODAY' : email.date}] From: ${email.from} | Subject: ${email.subject} | Preview: ${email.snippet}${email.isImportant ? ' [IMPORTANT]' : ''}`
+).join('\n')}
+
+${emailData.todaysEmails > 0 ? `
+TODAY'S EMAILS:
+${emailData.todaysEmailsDetailed.map((email, i) => 
+	`${i + 1}. From: ${email.from} | Subject: ${email.subject} | Preview: ${email.snippet}`
+).join('\n')}` : ''}
+
+${emailData.importantEmails > 0 ? `
+IMPORTANT/URGENT EMAILS:
+${emailData.importantEmailsDetailed.map((email, i) => 
+	`${i + 1}. From: ${email.from} | Subject: ${email.subject} | Preview: ${email.snippet}`
+).join('\n')}` : ''}
+
+Answer the user's questions about their emails using this context. Be helpful, specific, and concise. When summarizing, focus on key information like important senders, urgent matters, deadlines, and actionable items.`;
+
+				console.log(`Email context prepared: ${emailData.totalEmails} total, ${emailData.todaysEmails} today, ${emailData.importantEmails} important`);
+
+			} catch (emailError) {
+				console.error("Error fetching emails:", emailError);
+				systemMessage += " Note: Could not fetch email data at this time.";
+			}
+		}
+
+		// Create streaming completion with email context
 		const stream = await openai.chat.completions.create({
 			model: "gpt-4",
 			messages: [
 				{
 					role: "system",
-					content: "You are a helpful AI assistant for email management. You can help with general questions and email-related tasks."
+					content: systemMessage
 				},
-				...messages
+				...enhancedMessages
 			],
 			stream: true,
-			max_tokens: 500,
+			max_tokens: 1000,
 			temperature: 0.7
 		});
 

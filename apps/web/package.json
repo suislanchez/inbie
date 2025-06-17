@@ -24,9 +24,11 @@
 		"@types/node": "^22.13.13",
 		"@types/react": "^19.0.12",
 		"@types/react-dom": "^19.0.4",
-		"@vite-pwa/assets-generator": "^0.2.6",
+		"@vite-pwa/assets-generator": "^1.0.0",
 		"@vitejs/plugin-react": "^4.3.4",
 		"postcss": "^8.5.3",
+		"sharp": "^0.34.2",
+		"sharp-ico": "^0.1.5",
 		"tailwindcss": "^4.0.15",
 		"vite": "^6.2.2"
 	},

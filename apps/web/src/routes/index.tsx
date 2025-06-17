@@ -3607,6 +3607,16 @@ function HomeComponent() {
 	const [isLoadingLabels, setIsLoadingLabels] = useState(false)
 	const [labelIdToNameMap, setLabelIdToNameMap] = useState<Record<string, string>>({})
 
+	// Debug effect for userGmailLabels state changes
+	useEffect(() => {
+		debugEvents.addEntry(`📋 userGmailLabels state changed: [${userGmailLabels.join(', ')}] (${userGmailLabels.length} labels)`, "info")
+		if (userGmailLabels.length > 0) {
+			debugEvents.addEntry(`✅ Gmail labels are available and should be displayed instead of defaults`, "success")
+		} else {
+			debugEvents.addEntry(`⚠️ No Gmail labels available, using default folders`, "warning")
+		}
+	}, [userGmailLabels])
+
 	// Use user's Gmail labels if available, otherwise use a minimal set of defaults
 	const existingLabels = userGmailLabels.length > 0 ? userGmailLabels : [
 		"Important",
@@ -4033,11 +4043,15 @@ function HomeComponent() {
 				debugEvents.addEntry(`🚫 Filtered out ${filteredOutLabels.length} system labels: ${filteredOutLabels.map((l: any) => l.name).join(', ')}`, "warning")
 			}
 			
+			debugEvents.addEntry(`🔄 About to set userGmailLabels with: [${userLabels.join(', ')}]`, "info")
 			setUserGmailLabels(userLabels)
+			debugEvents.addEntry(`✅ Successfully set userGmailLabels state with ${userLabels.length} labels`, "success")
 
 			// If no user labels found, keep default folders
 			if (userLabels.length === 0) {
 				debugEvents.addEntry("No user labels found, keeping default folders", "info")
+			} else {
+				debugEvents.addEntry(`✅ Found ${userLabels.length} user labels, they should now be displayed in UI`, "success")
 			}
 
 		} catch (error) {
@@ -4091,7 +4105,12 @@ function HomeComponent() {
 					messages: [
 						...messages.map(msg => ({ role: msg.role, content: msg.content })),
 						{ role: 'user', content: userMessage.content }
-					]
+					],
+					// Include email context if user is authenticated with Google
+					emailContext: googleTokens ? {
+						accessToken: googleTokens.access_token,
+						refreshToken: googleTokens.refresh_token
+					} : undefined
 				})
 			})
 
@@ -4543,7 +4562,11 @@ function HomeComponent() {
 									All
 								</button>
 								{/* Show user's Gmail labels if available, otherwise show default folders */}
-								{(userGmailLabels.length > 0 ? userGmailLabels : DEFAULT_FOLDERS).map((folder) => (
+								{(() => {
+									const labelsToShow = userGmailLabels.length > 0 ? userGmailLabels : DEFAULT_FOLDERS;
+									debugEvents.addEntry(`🎨 Rendering labels: using ${userGmailLabels.length > 0 ? 'Gmail labels' : 'default folders'} - [${labelsToShow.join(', ')}]`, "info");
+									return labelsToShow;
+								})().map((folder) => (
 									<button
 										key={folder}
 										onClick={() => handleFolderChange(folder)}
@@ -6122,6 +6145,19 @@ function HomeComponent() {
 										<div className="text-center text-gray-500 dark:text-gray-400 text-sm">
 											<MessageCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
 											<p>Start a conversation with your AI assistant</p>
+											{googleTokens && (
+												<div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-600 dark:text-blue-400">
+													<p className="font-medium">📧 Email Assistant Ready!</p>
+													<p className="text-xs mt-1">I can read your Gmail and answer questions about your emails!</p>
+													<div className="mt-2 text-xs">
+														<p><strong>Try asking:</strong></p>
+														<p>• "Summarize my emails from today"</p>
+														<p>• "Any urgent or important messages?"</p>
+														<p>• "Who emailed me recently?"</p>
+														<p>• "What emails need my attention?"</p>
+													</div>
+												</div>
+											)}
 										</div>
 									)}
 									{messages.map((message) => (
