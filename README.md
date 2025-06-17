@@ -15,14 +15,14 @@ An **RAG-powered AI email assistant** named **Inby** that sorts, labels, and dra
 - Uses **tRPC** and **Hono** for API routing
 - Integrates **OpenAI + Claude** models with the **Gmail API** via **Google OAuth**
 - Runs on the **mastra_ai TypeScript framework** for building RAG agents
+- Chat with LLM connected to MCP server to summarize emails generate to do list etc..
 
 ---
 
 ![inbox-flux-demo2-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/9ca9b9ab-db4f-4496-8fbd-4935f7768c3e) 
+AI Draft Generation
 ![MyMovie2-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/a97761fc-463a-467f-a3de-664e9e024f80)
-
-
-
+AI Lebeling
 ---
 
 ##  Tech Stack
