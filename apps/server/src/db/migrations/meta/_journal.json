@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1750115386767,
+      "tag": "0000_calm_kitty_pryde",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1750119557344,
+      "tag": "0001_nosy_toxin",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1750119687854,
+      "tag": "0002_spicy_obadiah_stane",
+      "breakpoints": true
+    }
+  ]
+}

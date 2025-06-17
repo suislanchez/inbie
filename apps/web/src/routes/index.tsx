@@ -2632,6 +2632,9 @@ function HomeComponent() {
 	const [isRulesModalVisible, setIsRulesModalVisible] = useState(false);
 	const [isTestModalVisible, setIsTestModalVisible] = useState(false);
 	const [isHistoryModalVisible, setIsHistoryModalVisible] = useState(false);
+	const [isLabelingRecents, setIsLabelingRecents] = useState(false)
+	const [labelingProgress, setLabelingProgress] = useState(0)
+	const [emails, setEmails] = useState<Email[]>([])
 
 	// Add keyboard shortcut handler for all AI tools
 	useEffect(() => {
@@ -3764,6 +3767,36 @@ function HomeComponent() {
 		return await response.json()
 	}
 
+	const handleLabelRecents = async () => {
+		if (!googleTokens?.access_token || isLabelingRecents) return
+		
+		setIsLabelingRecents(true)
+		setLabelingProgress(0)
+		
+		try {
+			// Get 5 most recent emails
+			const recentEmails = emails.slice(0, 5)
+			
+			for (let i = 0; i < recentEmails.length; i++) {
+				const email = recentEmails[i]
+				await handleAIProcess(email)
+				setLabelingProgress(((i + 1) / recentEmails.length) * 100)
+			}
+			
+			toast.success("Completed labeling recent emails", {
+				description: `Processed ${recentEmails.length} emails`
+			})
+		} catch (error) {
+			console.error("Error labeling recent emails:", error)
+			toast.error("Failed to label recent emails", {
+				description: error instanceof Error ? error.message : "Unknown error"
+			})
+		} finally {
+			setIsLabelingRecents(false)
+			setLabelingProgress(0)
+		}
+	}
+
 	return (
 		<div className="flex h-screen bg-background">
 			<EmailStyles />
@@ -3992,41 +4025,71 @@ function HomeComponent() {
 			<div className="flex flex-1 flex-col bg-background">
 				{/* Header - Fixed */}
 				<div className="border-b bg-background p-4">
-					<div className="flex items-center justify-between">
-						<h1 className="font-semibold text-xl capitalize">
-							{activeFolder === "all"
-								? "All Emails"
-								: activeFolder.replace("-", " ")}
-						</h1>
-						<div className="flex items-center gap-2">
-							{/* Google Auth status */}
-							{!googleTokens ? (
-								<div className="mr-2">
-									<GoogleAuth />
-								</div>
-							) : (
-								<div className="flex items-center gap-2 mr-2">
-									<span className="text-xs text-green-500">✓ Gmail Connected</span>
-									<button 
-										onClick={fetchEmails}
-										className="p-1 rounded-full hover:bg-accent"
-										title="Refresh emails"
-										disabled={isLoadingEmails}
-									>
-										<RefreshCw className={`h-4 w-4 ${isLoadingEmails ? 'animate-spin' : ''}`} />
-									</button>
-									{isLoadingEmails && (
-										<span className="text-xs text-gray-500">Loading...</span>
+					<div className="flex flex-col gap-2">
+						<div className="flex items-center justify-between">
+							<h1 className="font-semibold text-xl capitalize">
+								{activeFolder === "all"
+									? "All Emails"
+									: activeFolder.replace("-", " ")}
+							</h1>
+							<div className="flex items-center gap-2">
+								<button
+									onClick={handleLabelRecents}
+									disabled={!googleTokens?.access_token || isLabelingRecents}
+									className="inline-flex items-center gap-1.5 rounded-md bg-purple-600 px-4 py-2 text-white hover:bg-purple-700 disabled:opacity-50"
+								>
+									{isLabelingRecents ? (
+										<>
+											<RefreshCw className="h-4 w-4 animate-spin" />
+											Labeling...
+										</>
+									) : (
+										<>
+											<Sparkles className="h-4 w-4" />
+											Label Recents
+										</>
 									)}
+								</button>
+								<div className="flex items-center gap-2">
+									{/* Google Auth status */}
+									{!googleTokens ? (
+										<div className="mr-2">
+											<GoogleAuth />
+										</div>
+									) : (
+										<div className="flex items-center gap-2 mr-2">
+											<span className="text-xs text-green-500">✓ Gmail Connected</span>
+											<button 
+												onClick={fetchEmails}
+												className="p-1 rounded-full hover:bg-accent"
+												title="Refresh emails"
+												disabled={isLoadingEmails}
+											>
+												<RefreshCw className={`h-4 w-4 ${isLoadingEmails ? 'animate-spin' : ''}`} />
+											</button>
+											{isLoadingEmails && (
+												<span className="text-xs text-gray-500">Loading...</span>
+											)}
+										</div>
+									)}
+									<button
+										onClick={handleNewEmail}
+										className="rounded-md bg-primary px-4 py-2 text-primary-foreground text-sm hover:bg-primary/90"
+									>
+										New Email
+									</button>
 								</div>
-							)}
-							<button
-								onClick={handleNewEmail}
-								className="rounded-md bg-primary px-4 py-2 text-primary-foreground text-sm hover:bg-primary/90"
-							>
-								New Email
-							</button>
+							</div>
 						</div>
+						{/* Progress bar */}
+						{isLabelingRecents && (
+							<div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden">
+								<div 
+									className="h-full bg-purple-600 transition-all duration-300"
+									style={{ width: `${labelingProgress}%` }}
+								/>
+							</div>
+						)}
 					</div>
 				</div>
 

@@ -97,8 +97,8 @@ app.get("/api/gmail/labels", async (c) => {
 			success: true,
 			labels: filteredLabels,
 		});
-	} catch (error: unknown) {
-		console.error("🔴 SERVER: Error fetching labels:", error instanceof Error ? error.message : error);
+	} catch (error) {
+		console.error("🔴 SERVER: Error fetching labels:", error?.message || error);
 		console.error("🔴 SERVER: Error details:", error);
 		return c.json(
 			{
@@ -210,11 +210,7 @@ Respond in this JSON format:
 		});
 
 		// Parse OpenAI response
-		const content = completion.choices[0].message.content
-		if (!content) {
-			throw new Error("OpenAI response content is null")
-		}
-		const analysis = JSON.parse(content)
+		const analysis = JSON.parse(completion.choices[0].message.content);
 
 		// Return the analysis
 		return c.json({
