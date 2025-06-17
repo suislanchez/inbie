@@ -2718,17 +2718,20 @@ function HomeComponent() {
 	const [draftError, setDraftError] = useState<string | null>(null);
 	const [draftInstructions, setDraftInstructions] = useState<string>("");
 	
-	const [customFolders, setCustomFolders] = useState([
-		{ id: 1, name: "AI Generated", type: "ai-generated" },
-		{ id: 2, name: "Follow-ups", type: "followups" },
-		{ id: 3, name: "Meetings", type: "meetings" },
-	]);
+	const [customFolders, setCustomFolders] = useState<Array<{
+		id: number;
+		name: string;
+		type: string;
+		description?: string;
+		aiBehavior?: string;
+		labels?: string[];
+	}>>([]);
 
 	// Add account state
 	const [accounts, setAccounts] = useState([
 		{
 			id: 1,
-			email: "luisanchez@berkeley.edu",
+			email: "luisanchez@berkeley.edu", 
 			provider: "Gmail (Edu)",
 			isActive: true,
 		},
@@ -2748,19 +2751,6 @@ function HomeComponent() {
 		labels: [] as string[],
 		newLabel: ""
 	})
-
-	const existingLabels = [
-		"Urgent",
-		"Important",
-		"Follow-up",
-		"Meeting",
-		"Project",
-		"Personal",
-		"Client",
-		"Team",
-		"Review",
-		"Action Required"
-	]
 
 	const handleLabelToggle = (label: string) => {
 		setNewFolderData(prev => ({
@@ -2925,9 +2915,14 @@ function HomeComponent() {
 			return realEmails.filter(email => {
 				// If this is a Gmail label, check if email has this label
 				if (userGmailLabels.includes(folder)) {
-					// Check if the email has this specific Gmail label
-					return email.badges.includes(folder) || 
-						   (email.labelIds && email.labelIds.includes(folder));
+					// Check if the email has this specific Gmail label in badges or label IDs
+					const hasLabelInBadges = email.badges.includes(folder);
+					const hasLabelInIds = email.labelIds && email.labelIds.some(labelId => 
+						labelIdToNameMap[labelId] === folder
+					);
+					
+					debugEvents.addEntry(`Checking email ${email.id} for label "${folder}": badges=${hasLabelInBadges}, labelIds=${hasLabelInIds}`, "info");
+					return hasLabelInBadges || hasLabelInIds;
 				}
 				
 				// Fallback to original hardcoded mappings for default folders
@@ -3206,6 +3201,8 @@ function HomeComponent() {
 			// Convert label IDs to badges
 			const badges = getLabelBadges(email.labelIds || []);
 			
+			debugEvents.addEntry(`Email "${email.subject}": labelIds=${JSON.stringify(email.labelIds)}, badges=${JSON.stringify(badges)}`, "info");
+			
 			// Determine priority based on labels
 			const priority = badges.includes("High Priority") ? "High" : 
 				badges.includes("Important") ? "Medium" : "Low";
@@ -3297,25 +3294,29 @@ function HomeComponent() {
 	const getLabelBadges = (labelIds: string[]) => {
 		const badges: string[] = [];
 		
-		// Map Gmail system labels to badges
-		if (labelIds.includes("IMPORTANT")) badges.push("Important");
-		if (labelIds.includes("INBOX")) badges.push("Inbox");
+		// Convert label IDs to actual label names using our mapping
+		labelIds.forEach(labelId => {
+			const labelName = labelIdToNameMap[labelId];
+			
+			// Skip system labels we don't want to show
+			if (labelId === "INBOX" || 
+				labelId === "SPAM" || 
+				labelId === "TRASH" || 
+				labelId === "DRAFT" || 
+				labelId === "SENT" || 
+				labelId === "STARRED" || 
+				labelId === "UNREAD" ||
+				labelId.startsWith("CATEGORY_")) {
+				return;
+			}
+			
+			// Add the actual label name if we have it
+			if (labelName && !badges.includes(labelName)) {
+				badges.push(labelName);
+			}
+		});
 		
-		// Determine priority
-		if (labelIds.some(label => label.includes("IMPORTANT") || label.includes("PRIORITY"))) {
-			badges.push("High Priority");
-		}
-		
-		// Add category badges
-		if (labelIds.some(label => label.includes("CATEGORY_PERSONAL"))) badges.push("Personal");
-		if (labelIds.some(label => label.includes("CATEGORY_SOCIAL"))) badges.push("Social");
-		if (labelIds.some(label => label.includes("CATEGORY_UPDATES"))) badges.push("Updates");
-		if (labelIds.some(label => label.includes("CATEGORY_FORUMS"))) badges.push("Forums");
-		if (labelIds.some(label => label.includes("CATEGORY_PROMOTIONS"))) badges.push("Marketing");
-		
-		// Ensure at least one badge
-		if (badges.length === 0) badges.push("Inbox");
-		
+		// Don't add any default badges - only show actual labels
 		return badges;
 	};
 	
@@ -3582,6 +3583,14 @@ function HomeComponent() {
 	// Add state for user's Gmail labels
 	const [userGmailLabels, setUserGmailLabels] = useState<string[]>([])
 	const [isLoadingLabels, setIsLoadingLabels] = useState(false)
+	const [labelIdToNameMap, setLabelIdToNameMap] = useState<Record<string, string>>({})
+
+	// Use user's Gmail labels if available, otherwise use a minimal set of defaults
+	const existingLabels = userGmailLabels.length > 0 ? userGmailLabels : [
+		"Important",
+		"Personal",
+		"Work"
+	]
 
 	// AI Email Labeling Function
 	const handleAIProcess = async (email: Email) => {
@@ -3959,14 +3968,49 @@ function HomeComponent() {
 
 			const labelsData = await labelsResponse.json()
 			
+			// Create a mapping from label ID to label name for all labels
+			const idToNameMapping: Record<string, string> = {}
+			labelsData.labels.forEach((label: any) => {
+				idToNameMapping[label.id] = label.name
+			})
+			setLabelIdToNameMap(idToNameMapping)
+			
 			// Filter for user-created labels (not system labels)
 			const userLabels = labelsData.labels
-				.filter((label: any) => label.type === 'user')
+				.filter((label: any) => {
+					// Include all user-created labels
+					if (label.type === 'user') return true;
+					
+					// Also include some useful system labels
+					if (label.id === 'IMPORTANT' || 
+						label.id === 'STARRED' ||
+						label.id === 'SENT' ||
+						label.id === 'DRAFT') return true;
+					
+					return false;
+				})
 				.map((label: any) => label.name)
-				.filter((name: string) => name.toLowerCase() !== 'important') // Exclude system-like labels
-				.slice(0, 10) // Limit to 10 labels for UI purposes
+				.filter((name: string) => {
+					// Only exclude these specific system labels
+					const excludeList = ['INBOX', 'SPAM', 'TRASH', 'UNREAD'];
+					return !excludeList.includes(name.toUpperCase());
+				})
+				// Show all labels - no artificial limit
 
 			debugEvents.addEntry(`✅ Found ${userLabels.length} user labels: ${userLabels.join(', ')}`, "success")
+			debugEvents.addEntry(`✅ Created label mapping for ${Object.keys(idToNameMapping).length} labels`, "info")
+			debugEvents.addEntry(`📋 All fetched labels (${labelsData.labels.length}): ${labelsData.labels.map((l: any) => `${l.name} (${l.type})`).join(', ')}`, "info")
+			
+			// Log any filtered out labels
+			const filteredOutLabels = labelsData.labels.filter((label: any) => {
+				if (label.type === 'user') return false;
+				if (label.id === 'IMPORTANT' || label.id === 'STARRED' || label.id === 'SENT' || label.id === 'DRAFT') return false;
+				return true;
+			});
+			if (filteredOutLabels.length > 0) {
+				debugEvents.addEntry(`🚫 Filtered out ${filteredOutLabels.length} system labels: ${filteredOutLabels.map((l: any) => l.name).join(', ')}`, "warning")
+			}
+			
 			setUserGmailLabels(userLabels)
 
 			// If no user labels found, keep default folders
@@ -4323,72 +4367,88 @@ function HomeComponent() {
 
 				{/* Email folders tabs - Fixed */}
 				<div className="border-b bg-background">
-					<div className="flex items-center gap-2 p-4">
-						<button
-							onClick={() => handleFolderChange("all")}
-							className={`rounded-md px-3 py-1.5 text-sm ${
-								activeFolder === "all"
-									? "bg-primary text-primary-foreground"
-									: "hover:bg-accent"
-							}`}
-						>
-							All
-						</button>
-						{/* Show user's Gmail labels if available, otherwise show default folders */}
-						{(userGmailLabels.length > 0 ? userGmailLabels : DEFAULT_FOLDERS).map((folder) => (
-							<button
-								key={folder}
-								onClick={() => handleFolderChange(folder)}
-								className={`rounded-md px-3 py-1.5 text-sm ${
-									activeFolder === folder
-										? "bg-primary text-primary-foreground"
-										: "hover:bg-accent"
-								}`}
-							>
-								{folder
-									.split("-")
-									.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-									.join(" ")}
-							</button>
-						))}
-						{/* Show loading indicator when fetching labels */}
-						{isLoadingLabels && (
-							<div className="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm text-muted-foreground">
-								<div className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
-								<span className="text-xs">Loading labels...</span>
+					<div className="p-4">
+						<div className="flex items-center justify-between mb-2">
+							<div className="flex items-center gap-2">
+								<h3 className="text-sm font-medium text-muted-foreground">
+									Labels ({userGmailLabels.length > 0 ? userGmailLabels.length : DEFAULT_FOLDERS.length})
+								</h3>
+								{userGmailLabels.length > 0 && (
+									<span className="text-xs text-green-600">Gmail Connected</span>
+								)}
 							</div>
-						)}
-						{/* Add refresh labels button */}
-						{googleTokens && userGmailLabels.length > 0 && (
-							<button
-								onClick={fetchGmailLabels}
-								disabled={isLoadingLabels}
-								className="ml-2 rounded-full p-1 hover:bg-accent transition-colors duration-200"
-								title="Refresh Gmail labels"
-							>
-								<RefreshCw className={`h-4 w-4 ${isLoadingLabels ? 'animate-spin' : ''}`} />
-							</button>
-						)}
-						{customFolders.map((folder) => (
-							<button
-								key={folder.id}
-								onClick={() => handleFolderChange(folder.type)}
-								className={`rounded-md px-3 py-1.5 text-sm ${
-									activeFolder === folder.type
-										? "bg-primary text-primary-foreground"
-										: "hover:bg-accent"
-								}`}
-							>
-								{folder.name}
-							</button>
-						))}
-						<button
-							ref={plusButtonRef}
-							onClick={handleOpenModal}
-							className="ml-2 rounded-full p-1 hover:bg-accent transition-colors duration-200"
-						>
-							<span className="text-lg">+</span>
-						</button>
+							{/* Refresh labels button */}
+							{googleTokens && (
+								<button
+									onClick={fetchGmailLabels}
+									disabled={isLoadingLabels}
+									className="rounded-full p-1 hover:bg-accent transition-colors duration-200"
+									title="Refresh Gmail labels"
+								>
+									<RefreshCw className={`h-3 w-3 ${isLoadingLabels ? 'animate-spin' : ''}`} />
+								</button>
+							)}
+						</div>
+						{/* Scrollable container for labels */}
+						<div className="max-h-24 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+							<div className="flex flex-wrap gap-1">
+								<button
+									onClick={() => handleFolderChange("all")}
+									className={`rounded-md px-3 py-1.5 text-sm shrink-0 ${
+										activeFolder === "all"
+											? "bg-primary text-primary-foreground"
+											: "hover:bg-accent"
+									}`}
+								>
+									All
+								</button>
+								{/* Show user's Gmail labels if available, otherwise show default folders */}
+								{(userGmailLabels.length > 0 ? userGmailLabels : DEFAULT_FOLDERS).map((folder) => (
+									<button
+										key={folder}
+										onClick={() => handleFolderChange(folder)}
+										className={`rounded-md px-3 py-1.5 text-sm shrink-0 ${
+											activeFolder === folder
+												? "bg-primary text-primary-foreground"
+												: "hover:bg-accent"
+										}`}
+									>
+										{folder
+											.split("-")
+											.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+											.join(" ")}
+									</button>
+								))}
+								{/* Show loading indicator when fetching labels */}
+								{isLoadingLabels && (
+									<div className="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm text-muted-foreground">
+										<div className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+										<span className="text-xs">Loading labels...</span>
+									</div>
+								)}
+								{customFolders.map((folder) => (
+									<button
+										key={folder.id}
+										onClick={() => handleFolderChange(folder.type)}
+										className={`rounded-md px-3 py-1.5 text-sm shrink-0 ${
+											activeFolder === folder.type
+												? "bg-primary text-primary-foreground"
+												: "hover:bg-accent"
+										}`}
+									>
+										{folder.name}
+									</button>
+								))}
+								<button
+									ref={plusButtonRef}
+									onClick={handleOpenModal}
+									className="ml-2 rounded-full p-1 hover:bg-accent transition-colors duration-200 shrink-0"
+									title="Add custom folder"
+								>
+									<span className="text-lg">+</span>
+								</button>
+							</div>
+						</div>
 					</div>
 				</div>
 
