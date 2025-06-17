@@ -1,8 +1,8 @@
-# **Boxy**  
-### Your inbox, ready before you wake.
+# Inbie - AI-Powered Email Management Platform
 
+An intelligent email management platform that integrates with Gmail to provide AI-powered email processing, summarization, and chat assistance.
 
-##  Features
+## 🚀 Features
 
 - **Gmail Integration**: Seamless OAuth integration with Gmail API
 - **AI Chat Assistant**: Chat with AI about your emails - ask for summaries, find urgent messages, and get insights
@@ -12,7 +12,7 @@
 - **Real-time Processing**: Live email fetching and processing
 - **Multi-platform**: Web, mobile (React Native), and documentation
 
-##  Project Structure
+## 📁 Project Structure
 
 ```
 apps/
@@ -255,7 +255,7 @@ pnpm run build
 3. Monitor server logs for processing errors
 4. Use Gmail API explorer for testing
 
-##  API Endpoints
+## 📊 API Endpoints
 
 ### Authentication
 - `POST /auth/google` - Initiate Google OAuth
@@ -283,7 +283,7 @@ pnpm run build
 - Cache AI responses for similar queries
 - Use streaming for real-time chat experience
 
-##  Security Considerations
+## 🔒 Security Considerations
 
 ### Data Protection
 - Tokens stored securely in httpOnly cookies
@@ -295,18 +295,18 @@ pnpm run build
 - User consent required for email access
 - Refresh token rotation implemented
 
-##  Contributing
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make changes with proper tests
 4. Submit a pull request
 
-##  License
+## 📝 License
 
 [Your License Here]
 
-##  Support
+## 🆘 Support
 
 For issues and questions:
 1. Check troubleshooting section above
@@ -314,7 +314,7 @@ For issues and questions:
 3. Verify environment configuration
 4. Check Google Cloud Console for quota/limits
 
-##  Roadmap
+## 🎯 Roadmap
 
 - [ ] Enhanced email categorization
 - [ ] Calendar integration
