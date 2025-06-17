@@ -1682,7 +1682,7 @@ Luis Sanchez`,
 	],
 };
 
-// Update default folders to match new categories
+// Default fallback folders if no Gmail labels are available
 const DEFAULT_FOLDERS = [
 	"to-reply",
 	"academic",
@@ -2923,7 +2923,14 @@ function HomeComponent() {
 		if (realEmails.length > 0) {
 			debugEvents.addEntry(`Filtering ${realEmails.length} real emails for folder: ${folder}`, "info");
 			return realEmails.filter(email => {
-				// Map folder to badge names
+				// If this is a Gmail label, check if email has this label
+				if (userGmailLabels.includes(folder)) {
+					// Check if the email has this specific Gmail label
+					return email.badges.includes(folder) || 
+						   (email.labelIds && email.labelIds.includes(folder));
+				}
+				
+				// Fallback to original hardcoded mappings for default folders
 				switch (folder) {
 					case "inbox":
 						return email.badges.includes("Inbox");
@@ -2944,7 +2951,11 @@ function HomeComponent() {
 					case "clubs":
 						return email.badges.includes("Social") || email.analytics.category === "Social";
 					default:
-						return false;
+						// For any other labels, try to match by badge name
+						return email.badges.some(badge => 
+							badge.toLowerCase() === folder.toLowerCase() ||
+							badge.toLowerCase().includes(folder.toLowerCase())
+						);
 				}
 			});
 		}
@@ -3427,16 +3438,17 @@ function HomeComponent() {
 		}
 	}
 	
-	// Fetch emails when tokens become available
+	// Fetch emails and labels when tokens become available
 	useEffect(() => {
 		if (googleTokens) {
-			debugEvents.addEntry("Auto-fetching emails after tokens available", "info");
+			debugEvents.addEntry("Auto-fetching emails and labels after tokens available", "info");
 			
-			// Only use the EmailList component's fetchEmails method
-			// This will trigger our fetchEmails function which now uses the EmailList implementation
+			// Fetch emails
 			fetchEmails();
 			
-			// Log that we're now using EmailList's implementation
+			// Fetch user's Gmail labels
+			fetchGmailLabels();
+			
 			debugEvents.addEntry("Now using EmailList's implementation for fetching emails", "info");
 		}
 	}, [googleTokens]);
@@ -3566,6 +3578,10 @@ function HomeComponent() {
 	// Add state for AI processing
 	const [processingEmails, setProcessingEmails] = useState<Set<number>>(new Set())
 	const [processedEmails, setProcessedEmails] = useState<Map<number, any>>(new Map())
+
+	// Add state for user's Gmail labels
+	const [userGmailLabels, setUserGmailLabels] = useState<string[]>([])
+	const [isLoadingLabels, setIsLoadingLabels] = useState(false)
 
 	// AI Email Labeling Function
 	const handleAIProcess = async (email: Email) => {
@@ -3920,6 +3936,55 @@ function HomeComponent() {
 		}
 	}
 
+	// Function to fetch user's Gmail labels
+	const fetchGmailLabels = async () => {
+		if (!googleTokens?.access_token || isLoadingLabels) return
+
+		setIsLoadingLabels(true)
+		debugEvents.addEntry("Fetching user's Gmail labels...", "info")
+
+		try {
+			const labelsResponse = await fetch(
+				'https://gmail.googleapis.com/gmail/v1/users/me/labels',
+				{
+					headers: {
+						'Authorization': `Bearer ${googleTokens.access_token}`,
+					},
+				}
+			)
+
+			if (!labelsResponse.ok) {
+				throw new Error(`Failed to fetch labels: ${labelsResponse.statusText}`)
+			}
+
+			const labelsData = await labelsResponse.json()
+			
+			// Filter for user-created labels (not system labels)
+			const userLabels = labelsData.labels
+				.filter((label: any) => label.type === 'user')
+				.map((label: any) => label.name)
+				.filter((name: string) => name.toLowerCase() !== 'important') // Exclude system-like labels
+				.slice(0, 10) // Limit to 10 labels for UI purposes
+
+			debugEvents.addEntry(`✅ Found ${userLabels.length} user labels: ${userLabels.join(', ')}`, "success")
+			setUserGmailLabels(userLabels)
+
+			// If no user labels found, keep default folders
+			if (userLabels.length === 0) {
+				debugEvents.addEntry("No user labels found, keeping default folders", "info")
+			}
+
+		} catch (error) {
+			debugEvents.addEntry("❌ Failed to fetch Gmail labels", "error")
+			console.error("Error fetching Gmail labels:", error)
+			
+			// Keep default folders on error
+			debugEvents.addEntry("Using default folders due to error", "info")
+		} finally {
+			setIsLoadingLabels(false)
+		}
+	}
+
 	const handleLabelRecents = async () => {
 		if (!googleTokens?.access_token || isLabelingRecents) return
 		
@@ -4269,7 +4334,8 @@ function HomeComponent() {
 						>
 							All
 						</button>
-						{DEFAULT_FOLDERS.map((folder) => (
+						{/* Show user's Gmail labels if available, otherwise show default folders */}
+						{(userGmailLabels.length > 0 ? userGmailLabels : DEFAULT_FOLDERS).map((folder) => (
 							<button
 								key={folder}
 								onClick={() => handleFolderChange(folder)}
@@ -4285,6 +4351,24 @@ function HomeComponent() {
 									.join(" ")}
 							</button>
 						))}
+						{/* Show loading indicator when fetching labels */}
+						{isLoadingLabels && (
+							<div className="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm text-muted-foreground">
+								<div className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+								<span className="text-xs">Loading labels...</span>
+							</div>
+						)}
+						{/* Add refresh labels button */}
+						{googleTokens && userGmailLabels.length > 0 && (
+							<button
+								onClick={fetchGmailLabels}
+								disabled={isLoadingLabels}
+								className="ml-2 rounded-full p-1 hover:bg-accent transition-colors duration-200"
+								title="Refresh Gmail labels"
+							>
+								<RefreshCw className={`h-4 w-4 ${isLoadingLabels ? 'animate-spin' : ''}`} />
+							</button>
+						)}
 						{customFolders.map((folder) => (
 							<button
 								key={folder.id}
