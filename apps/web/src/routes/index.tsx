@@ -3445,11 +3445,11 @@ function HomeComponent() {
 				debugEvents.addEntry("EmailList ref is not available - falling back to direct fetch", "warning")
 				
 				// Fallback to original implementation
-				const response = await fetchGmailEmails(
-					googleTokens.access_token,
-					googleTokens.refresh_token,
-					100 // Fetch 100 emails
-				)
+						const response = await fetchGmailEmails(
+			googleTokens.access_token,
+			googleTokens.refresh_token,
+			300 // Fetch 300 emails for better context
+		)
 				
 				if (response && Array.isArray(response)) {
 					const adaptedEmails = adaptEmailsFromEmailList(response)

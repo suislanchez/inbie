@@ -24,7 +24,7 @@ export async function fetchGmailEmails(
     const data = await trpc.google.getRecentEmails.query({
       accessToken,
       refreshToken,
-      maxResults: maxResults || 100
+      maxResults: maxResults || 300
     });
     
     if (data && Array.isArray(data)) {

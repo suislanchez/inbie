@@ -98,7 +98,7 @@ app.post("/api/chat", async (c) => {
 				const emails = await getRecentEmails(
 					emailContext.accessToken, 
 					emailContext.refreshToken, 
-					50 // Get more emails to filter
+					300 // Get 300 emails for better context
 				);
 				
 				// Filter successful emails
@@ -139,30 +139,33 @@ app.post("/api/chat", async (c) => {
 					return hasImportantLabel || hasUrgentKeywords;
 				});
 
-				// Prepare email context for AI
+				// Prepare email context for AI (optimized for token limits)
+				// Take top 80 recent emails + all today's + all important to balance context vs token usage
+				const recentEmailsForContext = validEmails.slice(0, 80);
+				
 				const emailData = {
 					totalEmails: validEmails.length,
 					todaysEmails: todaysEmails.length,
 					importantEmails: importantEmails.length,
-					recentEmails: validEmails.slice(0, 10).map(email => ({
-						subject: email.subject,
-						from: email.from,
+					recentEmails: recentEmailsForContext.map(email => ({
+						subject: email.subject?.substring(0, 60) || '', // Shorter subject
+						from: email.from?.substring(0, 30) || '', // Shorter sender
 						date: email.date,
-						snippet: email.snippet?.substring(0, 150),
+						snippet: email.snippet?.substring(0, 80) || '', // Shorter snippet
 						isToday: todaysEmails.some(te => te.id === email.id),
 						isImportant: importantEmails.some(ie => ie.id === email.id)
 					})),
-					todaysEmailsDetailed: todaysEmails.slice(0, 5).map(email => ({
-						subject: email.subject,
-						from: email.from,
+					todaysEmailsDetailed: todaysEmails.slice(0, 15).map(email => ({
+						subject: email.subject?.substring(0, 60) || '',
+						from: email.from?.substring(0, 30) || '',
 						date: email.date,
-						snippet: email.snippet?.substring(0, 200)
+						snippet: email.snippet?.substring(0, 100) || ''
 					})),
-					importantEmailsDetailed: importantEmails.slice(0, 5).map(email => ({
-						subject: email.subject,
-						from: email.from,
+					importantEmailsDetailed: importantEmails.slice(0, 15).map(email => ({
+						subject: email.subject?.substring(0, 60) || '',
+						from: email.from?.substring(0, 30) || '',
 						date: email.date,
-						snippet: email.snippet?.substring(0, 200)
+						snippet: email.snippet?.substring(0, 100) || ''
 					}))
 				};
 
@@ -174,9 +177,9 @@ CURRENT EMAIL CONTEXT:
 - Today's emails: ${emailData.todaysEmails}
 - Important/urgent emails: ${emailData.importantEmails}
 
-RECENT EMAILS (last 10):
+RECENT EMAILS (${emailData.recentEmails.length} most recent, from ${emailData.totalEmails} total):
 ${emailData.recentEmails.map((email, i) => 
-	`${i + 1}. [${email.isToday ? 'TODAY' : email.date}] From: ${email.from} | Subject: ${email.subject} | Preview: ${email.snippet}${email.isImportant ? ' [IMPORTANT]' : ''}`
+	`${i + 1}. [${email.isToday ? 'TODAY' : email.date}] ${email.from} | ${email.subject} | ${email.snippet}${email.isImportant ? ' [IMPORTANT]' : ''}`
 ).join('\n')}
 
 ${emailData.todaysEmails > 0 ? `

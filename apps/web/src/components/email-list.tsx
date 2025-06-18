@@ -262,7 +262,7 @@ export const EmailList = forwardRef<EmailListRef, EmailListProps>(
         const response = await trpc.google.getRecentEmails.query({
           accessToken,
           refreshToken,
-          maxResults: 100
+          maxResults: 300
         }).catch((error) => {
           // Enhanced tRPC error handling
           debugEvents.addEntry("🔍 Detailed tRPC Error Analysis:", "error")

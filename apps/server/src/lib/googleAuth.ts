@@ -62,7 +62,7 @@ export async function getUserInfo(accessToken: string) {
 }
 
 // Get recent emails
-export async function getRecentEmails(accessToken: string, refreshToken: string, maxResults = 10) {
+export async function getRecentEmails(accessToken: string, refreshToken: string, maxResults = 300) {
   console.log("Starting email fetch process...")
   
   try {
