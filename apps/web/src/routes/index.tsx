@@ -6111,14 +6111,23 @@ function HomeComponent() {
 								<div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
 									<MessageCircle className="h-4 w-4 text-white" />
 								</div>
-								<div>
-									<h3 className="font-semibold text-sm">AI Assistant</h3>
+								<div>	
+									<h3 className="font-semibold text-sm">Boxy</h3>
 									<p className="text-xs text-gray-500 dark:text-gray-400">
-										{isStreaming ? 'Typing...' : 'Online'}
+										{isStreaming ? 'Typing...' : 'MCP Connected'}
 									</p>
 								</div>
 							</div>
 							<div className="flex items-center gap-1">
+								<button
+									onClick={() => {
+										alert('Boxy is your AI email assistant powered by MCP (Model Context Protocol). It can read your Gmail, answer questions about your emails, and help you manage your inbox efficiently.')
+									}}
+									className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+									title="About Boxy"
+								>
+									<AlertCircle className="h-4 w-4" />
+								</button>
 								<button
 									onClick={toggleChat}
 									className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
@@ -6143,19 +6152,80 @@ function HomeComponent() {
 								>
 									{messages.length === 0 && (
 										<div className="text-center text-gray-500 dark:text-gray-400 text-sm">
-											<MessageCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
-											<p>Start a conversation with your AI assistant</p>
+											<div className="flex flex-col items-center mb-2">
+												<img 
+													src="/logo.png" 
+													alt="Boxy Logo" 
+													className="h-20 w-20 mx-auto mb-1 rounded-lg shadow-sm"
+												/>
+											</div>
+											<p className="mb-3">Start a conversation with Boxy</p>
+											
+											{/* Suggestion Buttons */}
+											<div className="grid grid-cols-2 gap-2 mb-4">
+												<button
+													onClick={() => {
+														const message = "Give me a complete daily email digest with key highlights, important conversations, and actionable items from today's messages."
+														setCurrentMessage(message)
+														// Use requestAnimationFrame to ensure the message is set before sending
+														requestAnimationFrame(() => {
+															if (message.trim() && !isStreaming) {
+																handleSendMessage()
+															}
+														})
+													}}
+													className="p-3 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-medium transition-colors cursor-pointer border border-blue-200 dark:border-blue-700"
+												>
+													◊ Daily Email Digest
+												</button>
+												<button
+													onClick={() => {
+														const message = "Show me all urgent and time-sensitive emails that need immediate action, including deadlines and critical updates."
+														setCurrentMessage(message)
+														requestAnimationFrame(() => {
+															if (message.trim() && !isStreaming) {
+																handleSendMessage()
+															}
+														})
+													}}
+													className="p-3 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 rounded-lg text-xs font-medium transition-colors cursor-pointer border border-red-200 dark:border-red-700"
+												>
+													! Priority Alerts
+												</button>
+												<button
+													onClick={() => {
+														const message = "Analyze my email patterns and show me who I communicate with most, including frequency and recent conversation topics."
+														setCurrentMessage(message)
+														requestAnimationFrame(() => {
+															if (message.trim() && !isStreaming) {
+																handleSendMessage()
+															}
+														})
+													}}
+													className="p-3 bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-900/50 text-green-700 dark:text-green-300 rounded-lg text-xs font-medium transition-colors cursor-pointer border border-green-200 dark:border-green-700"
+												>
+													@ Contact Analysis
+												</button>
+												<button
+													onClick={() => {
+														const message = "Create an action list of all emails requiring responses, follow-ups, or tasks, organized by priority and deadline."
+														setCurrentMessage(message)
+														requestAnimationFrame(() => {
+															if (message.trim() && !isStreaming) {
+																handleSendMessage()
+															}
+														})
+													}}
+													className="p-3 bg-purple-100 hover:bg-purple-200 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-lg text-xs font-medium transition-colors cursor-pointer border border-purple-200 dark:border-purple-700"
+												>
+													★ Action Items
+												</button>
+											</div>
+
 											{googleTokens && (
 												<div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-600 dark:text-blue-400">
-													<p className="font-medium">📧 Email Assistant Ready!</p>
+													<p className="font-medium">📧 Boxy is Ready!</p>
 													<p className="text-xs mt-1">I can read your Gmail and answer questions about your emails!</p>
-													<div className="mt-2 text-xs">
-														<p><strong>Try asking:</strong></p>
-														<p>• "Summarize my emails from today"</p>
-														<p>• "Any urgent or important messages?"</p>
-														<p>• "Who emailed me recently?"</p>
-														<p>• "What emails need my attention?"</p>
-													</div>
 												</div>
 											)}
 										</div>
@@ -6189,11 +6259,26 @@ function HomeComponent() {
 
 								{/* Chat Input */}
 								<div className="p-4 border-t border-gray-200 dark:border-gray-700">
-									<div className="flex items-center gap-2">
-										<input
-											type="text"
+									<div className="flex items-end gap-2">
+										<textarea
+											ref={(textarea) => {
+												if (textarea) {
+													const adjustHeight = () => {
+														textarea.style.height = 'auto';
+														textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+													};
+													textarea.addEventListener('input', adjustHeight);
+													adjustHeight(); // Initial adjustment
+												}
+											}}
 											value={currentMessage}
-											onChange={(e) => setCurrentMessage(e.target.value)}
+											onChange={(e) => {
+												setCurrentMessage(e.target.value);
+												// Auto-resize on change as well
+												const target = e.target as HTMLTextAreaElement;
+												target.style.height = 'auto';
+												target.style.height = Math.min(target.scrollHeight, 120) + 'px';
+											}}
 											onKeyDown={(e) => {
 												if (e.key === 'Enter' && !e.shiftKey) {
 													e.preventDefault()
@@ -6201,8 +6286,13 @@ function HomeComponent() {
 												}
 											}}
 											placeholder="Type your message..."
-											className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+											className="flex-1 resize-none rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white min-h-[40px] max-h-[120px] overflow-y-auto"
 											disabled={isStreaming}
+											rows={1}
+											style={{
+												height: '40px',
+												minHeight: '40px',
+											}}
 										/>
 										<button
 											onClick={handleSendMessage}
