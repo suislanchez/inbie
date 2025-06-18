@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
 	AlertCircle,
+	AlertTriangle,
 	Archive,
 	ArrowRight,
 	Ban,
@@ -20,6 +21,7 @@ import {
 	Mail,
 	MessageCircle,
 	Minus,
+	Newspaper,
 	PieChart,
 	RefreshCw,
 	Send,
@@ -31,7 +33,10 @@ import {
 	Tag,
 	Trash2,
 	Users,
+	UserCheck,
+	ListTodo,
 	X,
+	Zap,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import type { ChangeEvent } from "react";
@@ -6099,14 +6104,18 @@ function HomeComponent() {
 
 				{isChatOpen && (
 					<div 
-						className={`fixed bottom-6 right-6 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 transition-all duration-300 ${
+						className={`fixed bottom-6 right-6 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 dark:border-gray-700/50 z-50 transition-all duration-300 ${
 							isChatMinimized 
 								? 'w-80 h-16' 
 								: 'w-96 h-[32rem]'
 						}`}
+						style={{
+							backdropFilter: 'blur(20px)',
+							WebkitBackdropFilter: 'blur(20px)',
+						}}
 					>
 						{/* Chat Header */}
-						<div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+						<div className="flex items-center justify-between p-4 border-b border-white/20 dark:border-gray-700/50">
 							<div className="flex items-center gap-2">
 								<div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
 									<MessageCircle className="h-4 w-4 text-white" />
@@ -6165,7 +6174,7 @@ function HomeComponent() {
 											<div className="grid grid-cols-2 gap-2 mb-4">
 												<button
 													onClick={() => {
-														const message = "Give me a complete daily email digest with key highlights, important conversations, and actionable items from today's messages."
+														const message = "Boxy, what's my complete daily email digest with key highlights, important conversations, and actionable items from today's messages?"
 														setCurrentMessage(message)
 														// Use requestAnimationFrame to ensure the message is set before sending
 														requestAnimationFrame(() => {
@@ -6174,13 +6183,14 @@ function HomeComponent() {
 															}
 														})
 													}}
-													className="p-3 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-medium transition-colors cursor-pointer border border-blue-200 dark:border-blue-700"
+													className="p-3 bg-gradient-to-br from-gray-100/60 to-gray-200/60 hover:from-gray-200/70 hover:to-gray-300/70 dark:from-gray-800/60 dark:to-gray-700/60 dark:hover:from-gray-700/70 dark:hover:to-gray-600/70 text-gray-700 dark:text-gray-300 rounded-xl text-xs font-medium transition-all duration-200 cursor-pointer border border-gray-200/50 dark:border-gray-600/50 backdrop-blur-sm flex items-center gap-2"
 												>
-													◊ Daily Email Digest
+													<Newspaper className="h-4 w-4" />
+													<span>Boxy, what's my daily summary?</span>
 												</button>
 												<button
 													onClick={() => {
-														const message = "Show me all urgent and time-sensitive emails that need immediate action, including deadlines and critical updates."
+														const message = "Boxy, what are my urgent priority alerts? Show me all time-sensitive emails that need immediate action, including deadlines and critical updates."
 														setCurrentMessage(message)
 														requestAnimationFrame(() => {
 															if (message.trim() && !isStreaming) {
@@ -6188,13 +6198,14 @@ function HomeComponent() {
 															}
 														})
 													}}
-													className="p-3 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 rounded-lg text-xs font-medium transition-colors cursor-pointer border border-red-200 dark:border-red-700"
+													className="p-3 bg-gradient-to-br from-gray-100/60 to-gray-200/60 hover:from-gray-200/70 hover:to-gray-300/70 dark:from-gray-800/60 dark:to-gray-700/60 dark:hover:from-gray-700/70 dark:hover:to-gray-600/70 text-gray-700 dark:text-gray-300 rounded-xl text-xs font-medium transition-all duration-200 cursor-pointer border border-gray-200/50 dark:border-gray-600/50 backdrop-blur-sm flex items-center gap-2"
 												>
-													! Priority Alerts
+													<AlertTriangle className="h-4 w-4" />
+													<span>Boxy, what's urgent today?</span>
 												</button>
 												<button
 													onClick={() => {
-														const message = "Analyze my email patterns and show me who I communicate with most, including frequency and recent conversation topics."
+														const message = "Boxy, what's my contact analysis? Analyze my email patterns and show me who I communicate with most, including frequency and recent conversation topics."
 														setCurrentMessage(message)
 														requestAnimationFrame(() => {
 															if (message.trim() && !isStreaming) {
@@ -6202,13 +6213,14 @@ function HomeComponent() {
 															}
 														})
 													}}
-													className="p-3 bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-900/50 text-green-700 dark:text-green-300 rounded-lg text-xs font-medium transition-colors cursor-pointer border border-green-200 dark:border-green-700"
+													className="p-3 bg-gradient-to-br from-gray-100/60 to-gray-200/60 hover:from-gray-200/70 hover:to-gray-300/70 dark:from-gray-800/60 dark:to-gray-700/60 dark:hover:from-gray-700/70 dark:hover:to-gray-600/70 text-gray-700 dark:text-gray-300 rounded-xl text-xs font-medium transition-all duration-200 cursor-pointer border border-gray-200/50 dark:border-gray-600/50 backdrop-blur-sm flex items-center gap-2"
 												>
-													@ Contact Analysis
+													<UserCheck className="h-4 w-4" />
+													<span>Boxy, who am I talking to?</span>
 												</button>
 												<button
 													onClick={() => {
-														const message = "Create an action list of all emails requiring responses, follow-ups, or tasks, organized by priority and deadline."
+														const message = "Boxy, what are my action items? Create a list of all emails requiring responses, follow-ups, or tasks, organized by priority and deadline."
 														setCurrentMessage(message)
 														requestAnimationFrame(() => {
 															if (message.trim() && !isStreaming) {
@@ -6216,9 +6228,10 @@ function HomeComponent() {
 															}
 														})
 													}}
-													className="p-3 bg-purple-100 hover:bg-purple-200 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-lg text-xs font-medium transition-colors cursor-pointer border border-purple-200 dark:border-purple-700"
+													className="p-3 bg-gradient-to-br from-gray-100/60 to-gray-200/60 hover:from-gray-200/70 hover:to-gray-300/70 dark:from-gray-800/60 dark:to-gray-700/60 dark:hover:from-gray-700/70 dark:hover:to-gray-600/70 text-gray-700 dark:text-gray-300 rounded-xl text-xs font-medium transition-all duration-200 cursor-pointer border border-gray-200/50 dark:border-gray-600/50 backdrop-blur-sm flex items-center gap-2"
 												>
-													★ Action Items
+													<ListTodo className="h-4 w-4" />
+													<span>Boxy, what needs my attention?</span>
 												</button>
 											</div>
 
@@ -6258,7 +6271,7 @@ function HomeComponent() {
 								</div>
 
 								{/* Chat Input */}
-								<div className="p-4 border-t border-gray-200 dark:border-gray-700">
+								<div className="p-4 border-t border-white/20 dark:border-gray-700/50">
 									<div className="flex items-end gap-2">
 										<textarea
 											ref={(textarea) => {
@@ -6286,7 +6299,7 @@ function HomeComponent() {
 												}
 											}}
 											placeholder="Type your message..."
-											className="flex-1 resize-none rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white min-h-[40px] max-h-[120px] overflow-y-auto"
+											className="flex-1 resize-none rounded-lg border border-gray-300/50 dark:border-gray-600/50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 bg-white/60 dark:bg-gray-800/60 dark:text-white min-h-[40px] max-h-[120px] overflow-y-auto backdrop-blur-sm"
 											disabled={isStreaming}
 											rows={1}
 											style={{
